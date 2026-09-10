@@ -1,35 +1,42 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec — 打包 BuddyZGateway 单文件 exe（无控制台窗口）。
-
-用法：
-    pyinstaller BuddyZGateway.spec
-"""
-import os
-
 from PyInstaller.utils.hooks import collect_all
 
 datas = []
 binaries = []
-hiddenimports = [
-    'converter', 'desensitize', 'monkeycode2openai', 'codearts2openai',
-    'sqlite3', 'yaml', 'pystray.win32', 'pystray._util.win32',
-]
-for pkg in ('fastapi', 'starlette', 'uvicorn', 'httpx', 'httpcore', 'anyio',
-            'pydantic', 'pydantic_core', 'dotenv', 'h11', 'httptools',
-            'websockets', 'pystray', 'PIL'):
-    tmp_ret = collect_all(pkg)
-    datas += tmp_ret[0]
-    binaries += tmp_ret[1]
-    hiddenimports += tmp_ret[2]
+hiddenimports = ['converter', 'desensitize', 'monkeycode2openai', 'sqlite3', 'yaml', 'pystray.win32', 'pystray._util.win32']
+tmp_ret = collect_all('fastapi')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('starlette')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('uvicorn')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('httpx')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('httpcore')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('anyio')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('pydantic')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('pydantic_core')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('dotenv')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('h11')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('httptools')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('websockets')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('pystray')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('PIL')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
-# 内嵌模块解包目录（首次运行自动写入，此处仅作 import 搜索路径）
-_RUNTIME = os.path.join(
-    os.environ.get('LOCALAPPDATA', os.path.expanduser('~')),
-    'BuddyZGateway', 'runtime', 'codebuddy2openai')
 
 a = Analysis(
     ['BuddyZGateway.py'],
-    pathex=[_RUNTIME],
+    pathex=['C:/Users/ASUS/AppData/Local/BuddyZGateway/runtime/codebuddy2openai'],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
