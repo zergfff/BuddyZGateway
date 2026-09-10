@@ -1,0 +1,36 @@
+# 运行时与构建产物
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+*.spec.bak
+
+# 本地配置 / 凭证 / 日志（绝不入库）
+data/
+logs/
+*.log
+settings.json
+*.info
+*.info.tmp
+*.db
+*.db-wal
+*.db-shm
+
+# 各类密钥文件
+.env
+*.pem
+*.key
+*.jwt
+*_jwt.txt
+auth.json
+credentials.json
+cookies*.json
+*_cookies.json
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+nul
