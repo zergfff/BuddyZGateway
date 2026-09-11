@@ -2237,39 +2237,173 @@ def probe_local_chat(base_url: str, model: str, timeout: int = 60) -> bool | Non
         return None
 
 
+def _post_chat_json(base_url: str, payload: dict, timeout: int) -> tuple[int, str]:
+    """POST 到本地反代的 /chat/completions；返回 (status, body_text)。
+
+    传输层失败返回 (-1, 描述)；HTTPError 也把 body 读出来（诊断信息在里面）。
+    """
+    import urllib.request
+    import urllib.error
+    req = urllib.request.Request(base_url.rstrip("/") + "/chat/completions",
+                                 data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, e.read().decode("utf-8", "replace")
+        except Exception:  # noqa: BLE001
+            return e.code, ""
+    except Exception as e:  # noqa: BLE001
+        return -1, f"{type(e).__name__}: {e}"
+
+
+def _tool_choice_rejected(status: int, body: str) -> bool:
+    """上游是否在抱怨 tool_choice 的格式（而不是别的错）。"""
+    if status not in (400, 422):
+        return False
+    low = (body or "").lower()
+    return "tool_choice" in low or "toolchoice" in low
+
+
 def probe_model_tools(base_url: str, model: str, timeout: int = 90) -> bool | None:
     """经本地反代探测模型是否支持工具调用：True 支持 / False 不支持 / None 未知。
 
-    判据是“强制指定工具”的请求：能回来 tool_calls 就是支持；HTTP 200 但没有
-    tool_calls 视为不支持；报错/超时/空 choices 一律记 None（未知），不写成 False，
-    免得网络抖动被当成“这模型没工具”。
+    判据是「强制调用工具」的请求能否返回 tool_calls。但**各通道上游对
+    tool_choice 的接受程度不一样**：mc 的官方代理两种协议都接受对象形式，
+    而 WorkBuddy(CodeBuddy) 上游是 Go 服务，其 tool_choice 字段类型是 string，
+    收到 {"type":"function",...} 这种对象会直接 400
+    （`cannot unmarshal object into Go struct field Request.tool_choice of type string`）。
+    所以按精度**逐级降级**：
 
-    这是唯一能拿到工具能力的办法——桌面端 config.json / ohmyagent settings.json
-    里都没有逐模型的工具字段。每个模型一次请求，较慢（实测每个 5–10s）。
+      1. 对象形式 {"type":"function","function":{"name":…}} —— 最精确
+      2. 字符串 "required" —— 语义等价（必须调用工具，但不限定哪个），够探测用
+      3. 字符串 "auto" —— 只能**证明支持**（真的回了 tool_calls），证不了不支持
+
+    降级只在明确是 tool_choice 格式问题时发生，其它错误（鉴权/模型不存在）直接
+    记 None，不浪费请求。
     """
-    import urllib.request
     tool = [{"type": "function",
              "function": {"name": "cap_probe",
                           "description": "能力探测占位工具；被要求时必须调用它。",
                           "parameters": {"type": "object",
                                          "properties": {"ok": {"type": "boolean"}},
                                          "required": ["ok"]}}}]
-    body = json.dumps({"model": model,
-                       "messages": [{"role": "user", "content": "调用 cap_probe，ok 传 true。"}],
-                       "tools": tool,
-                       "tool_choice": {"type": "function", "function": {"name": "cap_probe"}},
-                       "max_tokens": 200, "stream": False}).encode()
-    req = urllib.request.Request(base_url.rstrip("/") + "/chat/completions", data=body,
-                                 headers={"Content-Type": "application/json"}, method="POST")
+    base_payload = {"model": model,
+                    # 首条必须是 system：WorkBuddy(CodeBuddy) 上游强制要求，
+                    # 否则回 400 code 11128「first message is not system prompt」。
+                    "messages": [{"role": "system", "content": "you are a helpful assistant"},
+                                 {"role": "user", "content": "调用 cap_probe，ok 传 true。"}],
+                    "tools": tool, "max_tokens": 200, "stream": False}
+
+    for choice, forced in (({"type": "function", "function": {"name": "cap_probe"}}, True),
+                           ("required", True),
+                           ("auto", False)):
+        status, text = _post_chat_json(base_url, dict(base_payload, tool_choice=choice), timeout)
+        if status == -1:                      # 传输层失败：未知
+            return None
+        if status == 200:
+            try:
+                d = json.loads(text)
+            except Exception:  # noqa: BLE001
+                return None
+            choices = (d or {}).get("choices") or []
+            if not choices:
+                return None
+            got = bool((choices[0].get("message") or {}).get("tool_calls"))
+            if got:
+                return True
+            # 强制调用却没回 tool_calls → 判定不支持；
+            # auto 下没回只能算未知（模型可以合法地选择不调工具）
+            return False if forced else None
+        if _tool_choice_rejected(status, text):
+            continue                          # 换下一种形式重试
+        return None                           # 其它错误：未知
+    return None
+
+
+def probe_model_speed(base_url: str, model: str, timeout: int = 90,
+                      max_tokens: int = 64) -> dict:
+    """快速测一次模型的「首字延迟」和「生成速度」。
+
+    走流式请求，量三个值：
+      · first   —— 首字延迟（发出请求 → 第一个 delta 到达），真实测量
+      · tps     —— 生成速度（首字之后每秒产出多少 delta）
+      · tokens  —— 产出量的口径
+
+    注意速度是**估算**：本网关的流式响应不带 usage（OpenAI 要
+    stream_options.include_usage 才有），所以拿不到精确的 completion_tokens，
+    只能数 delta 个数当近似。因此返回值带 estimated=True，界面/日志要标明「约」。
+    首字延迟不受此影响，是准的。
+    """
+    import urllib.request
+    import urllib.error
+    import time as _t
+    payload = {"model": model,
+               # 首条必须是 system：WorkBuddy(CodeBuddy) 上游强制要求，
+               # 否则回 400 code 11128「first message is not system prompt」。
+               # 对 mc 等通道也无害（system 会变成 instructions/system）。
+               "messages": [{"role": "system", "content": "you are a helpful assistant"},
+                            {"role": "user", "content": "用一句话说明什么是HTTP。"}],
+               "max_tokens": max_tokens, "stream": True}
+    req = urllib.request.Request(
+        base_url.rstrip("/") + "/chat/completions",
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json", "Accept": "text/event-stream"},
+        method="POST")
+    t0 = _t.time()
+    first = None
+    chunks = 0
+    usage_tokens = None
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            d = json.loads(r.read().decode("utf-8", "replace"))
-    except Exception:  # noqa: BLE001
-        return None
-    choices = (d or {}).get("choices") or []
-    if not choices:
-        return None
-    return bool((choices[0].get("message") or {}).get("tool_calls"))
+            if r.status != 200:
+                return {"error": f"HTTP {r.status}"}
+            for raw in r:                      # SSE 逐行读
+                line = raw.decode("utf-8", "replace").strip()
+                if not line.startswith("data:"):
+                    continue
+                p = line[5:].strip()
+                if p == "[DONE]":
+                    break
+                try:
+                    d = json.loads(p)
+                except Exception:  # noqa: BLE001
+                    continue
+                ch = (d.get("choices") or [{}])[0]
+                dl = ch.get("delta") or {}
+                if dl.get("content") or dl.get("reasoning_content") or dl.get("tool_calls"):
+                    chunks += 1
+                    if first is None:
+                        first = _t.time() - t0
+                u = d.get("usage") or ch.get("usage") or {}
+                if u.get("completion_tokens"):
+                    usage_tokens = u["completion_tokens"]
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}"}
+    elapsed = _t.time() - t0
+    gen = (elapsed - first) if first is not None else None
+    tokens = usage_tokens or chunks
+    tps = (tokens / gen) if (gen and gen > 0 and tokens) else None
+    return {"first": first, "tps": tps, "tokens": tokens, "elapsed": elapsed,
+            "estimated": usage_tokens is None, "error": None}
+
+
+def _fmt_speed(sp: dict) -> str:
+    """把测速结果压成一行短文本（供日志）。"""
+    if not sp or sp.get("error"):
+        return f"测速失败（{sp.get('error') if sp else '无结果'}）"
+    first = sp.get("first")
+    tps = sp.get("tps")
+    parts = []
+    parts.append(f"首字 {first:.2f}s" if isinstance(first, (int, float)) else "首字 —")
+    if isinstance(tps, (int, float)):
+        parts.append(("约 " if sp.get("estimated") else "") + f"{tps:.1f} t/s")
+    else:
+        parts.append("速度 —")
+    parts.append(f"{sp.get('tokens', 0)} 字")
+    return " · ".join(parts)
 
 
 def refresh_models_startup(s: dict, log=print, local_bases: dict | None = None):
@@ -4200,7 +4334,7 @@ def run_gui(smoke: bool = False):
                     t += f"，{n_unk} 个未测出"
                 bits.append(t)
             else:
-                bits.append("工具调用能力尚未探测：勾选模型后点「探测工具能力」")
+                bits.append("工具调用能力尚未探测：勾选模型后点「探测能力/速度」")
             if bits:
                 hint.configure(text="；".join(bits) + "。")
                 hint.pack(anchor="w", pady=(2, 0))
@@ -4239,14 +4373,14 @@ def run_gui(smoke: bool = False):
                 emit(f"[{key}] 模型列表刷新失败：未取到候选（服务未运行？）")
 
         def do_probe_tools():
-            """只探测**当前勾选**模型的工具调用能力（每个模型一次请求，较慢）。"""
+            """探测**当前勾选**模型的能力：工具调用 + 首字延迟/速度（逐个请求，较慢）。"""
             checked = [m for m in state["cands"]
                        if state["vars"].get(m) and state["vars"][m].get()]
             if not checked:
                 emit(f"[{key}] 请先勾选要探测的模型")
                 return
             if not (services.get(key) and services[key].running):
-                emit(f"[{key}] 服务未运行，无法探测工具能力")
+                emit(f"[{key}] 服务未运行，无法探测")
                 return
             base = _local_chat_base(key)
             if btns_probe is not None:
@@ -4254,13 +4388,20 @@ def run_gui(smoke: bool = False):
 
             def _bg():
                 try:
-                    emit(f"[{key}] 开始探测工具调用能力（{len(checked)} 个勾选模型，请稍候）…")
-                    tmap = {m: probe_model_tools(base, m) for m in checked}
+                    emit(f"[{key}] 开始探测（{len(checked)} 个勾选模型：工具能力 + 速度）…")
+                    tmap, smap = {}, {}
+                    for m in checked:
+                        tmap[m] = probe_model_tools(base, m)
+                        smap[m] = probe_model_speed(base, m)
+                        tag = {True: "支持", False: "不支持", None: "未测出"}[tmap[m]]
+                        emit(f"[{key}] {m}  工具={tag}  {_fmt_speed(smap[m])}")
                     rec = dict(settings.get(f"{key}_verified") or {})
-                    old = rec.get("tools") if isinstance(rec.get("tools"), dict) else {}
-                    old.update(tmap)      # 合并：未探测模型保留上次结果
-                    rec["tools"] = old
-                    rec["tools_ts"] = time.time()
+                    old_t = rec.get("tools") if isinstance(rec.get("tools"), dict) else {}
+                    old_t.update(tmap)      # 合并：未探测模型保留上次结果
+                    old_s = rec.get("speed") if isinstance(rec.get("speed"), dict) else {}
+                    old_s.update(smap)
+                    rec["tools"], rec["tools_ts"] = old_t, time.time()
+                    rec["speed"], rec["speed_ts"] = old_s, time.time()
                     settings[f"{key}_verified"] = rec
                     try:
                         save_settings(settings)
@@ -4269,11 +4410,16 @@ def run_gui(smoke: bool = False):
                     n_tool = sum(1 for v in tmap.values() if v is True)
                     bad = [k for k, v in tmap.items() if v is False]
                     unk = [k for k, v in tmap.items() if v is None]
-                    emit(f"[{key}] 工具能力探测完成：{n_tool}/{len(tmap)} 支持"
+                    # 速度汇总：挑最快的
+                    raced = [(v.get("tps"), k) for k, v in smap.items()
+                             if isinstance(v.get("tps"), (int, float))]
+                    fastest = f" · 最快 {max(raced)[1]} 约 {max(raced)[0]:.1f} t/s" if raced else ""
+                    emit(f"[{key}] 探测完成：工具 {n_tool}/{len(tmap)} 支持"
                          + (f" · 不支持：{', '.join(bad)}" if bad else "")
-                         + (f" · 未测出：{', '.join(unk)}" if unk else ""))
+                         + (f" · 未测出：{', '.join(unk)}" if unk else "")
+                         + fastest)
                 except Exception as e:  # noqa: BLE001
-                    emit(f"[{key}] 工具能力探测失败：{e}")
+                    emit(f"[{key}] 探测失败：{e}")
                 finally:
                     if btns_probe is not None:
                         ui(lambda: btns_probe.configure(state="normal"))
@@ -4286,7 +4432,7 @@ def run_gui(smoke: bool = False):
         ttk.Button(btns, text="保存", command=save).pack(side="right")
         ttk.Button(btns, text="取消", command=win.destroy).pack(side="left", padx=4)
         ttk.Button(btns, text="刷新模型", command=do_refresh).pack(side="left")
-        btns_probe = ttk.Button(btns, text="探测工具能力", command=do_probe_tools)
+        btns_probe = ttk.Button(btns, text="探测能力/速度", command=do_probe_tools)
         btns_probe.pack(side="left", padx=(4, 0))
 
     def pool_dialog():

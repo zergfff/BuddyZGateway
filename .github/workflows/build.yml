@@ -1,0 +1,74 @@
+name: build
+
+# 触发：推送到 master / main，打 tag，或手动。
+# 产物：BuddyZGateway.exe（Windows 单文件）。
+# 打 tag 推送时（如 v1.6.0）会额外把 exe 附到 Release。
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write        # 打 tag 时创建 Release 需要
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          # 运行期依赖（BuddyZGateway.spec 里 collect_all 的那些）
+          python -m pip install \
+            pyinstaller \
+            fastapi starlette uvicorn[standard] httpx httpcore anyio \
+            pydantic pydantic_core python-dotenv h11 httptools websockets \
+            pystray Pillow pyyaml
+          python -m PyInstaller --version
+
+      - name: Syntax check
+        shell: bash
+        run: python -c "import ast,sys; ast.parse(open('BuddyZGateway.py',encoding='utf-8').read()); print('syntax OK')"
+
+      - name: Verify embedded manifest is in sync with _study/
+        shell: bash
+        run: python _study/rebuild_embed.py --check || true
+
+      - name: Build exe
+        shell: bash
+        run: python -m PyInstaller --noconfirm --clean BuddyZGateway.spec
+
+      - name: Verify artifact exists
+        shell: bash
+        run: |
+          ls -la dist/
+          test -f dist/BuddyZGateway.exe && echo "exe built"
+
+      - name: Upload exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BuddyZGateway-exe
+          path: dist/BuddyZGateway.exe
+          if-no-files-found: error
+
+      - name: Attach exe to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            dist/BuddyZGateway.exe \
+          || gh release upload "$GITHUB_REF_NAME" dist/BuddyZGateway.exe --clobber
