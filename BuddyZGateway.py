@@ -34,7 +34,7 @@ import webbrowser
 from pathlib import Path
 
 APP_NAME = "BuddyZGateway"
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 
 # ---------------------------------------------------------------------------
 # 路径
