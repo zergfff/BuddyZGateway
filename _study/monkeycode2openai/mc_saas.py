@@ -1,0 +1,139 @@
+# -*- coding: utf-8 -*-
+"""mc_saas — MonkeyCode SaaS 侧接口（钱包/签到），自包含。
+
+会话取自桌面端 Roaming/com.chaitin.baizhi.monkeycode/monkeycode-cookies.json
+（单 session cookie，无锁、无 DPAPI，可靠）。
+移植自 reverse-proxy/upstream.py + session.py 相关部分。
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from pathlib import Path
+
+import httpx
+
+BASE_API = "https://monkeycode-ai.com"
+EP_WALLET = "/api/v1/users/wallet"
+EP_CHECKIN = "/api/v1/users/wallet/checkin"
+EP_CAPTCHA_CHALLENGE = "/api/v1/public/captcha/challenge"
+EP_CAPTCHA_REDEEM = "/api/v1/public/captcha/redeem"
+
+_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+FNV_OFFSET32 = 2166136261
+FNV_MASK = 0xFFFFFFFF
+
+
+def _fnv1a(s):
+    h = FNV_OFFSET32
+    for ch in s.encode("utf-8"):
+        h ^= ch
+        h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) & FNV_MASK
+    return h
+
+
+def _prng(seed, length):
+    state = _fnv1a(seed)
+    out = []
+    while len(out) * 8 < length:
+        state ^= (state << 13) & FNV_MASK
+        state ^= state >> 17
+        state ^= (state << 5) & FNV_MASK
+        state &= FNV_MASK
+        out.append(f"{state:08x}")
+    return "".join(out)[:length]
+
+
+def _solve_sub(token, idx, s_len, d_len):
+    salt = _prng(token + str(idx), s_len)
+    target = _prng(token + str(idx) + "d", d_len)
+    for n in range(1 << 26):
+        digest = hashlib.sha256((salt + str(n)).encode()).hexdigest()
+        if digest[:d_len] == target:
+            return n
+    raise RuntimeError(f"sub-challenge {idx} unsolved (d={d_len})")
+
+
+def _cookie_file() -> Path | None:
+    home = Path.home()
+    for base in (os.environ.get("APPDATA"), home / "AppData" / "Roaming"):
+        if not base:
+            continue
+        p = Path(base) / "com.chaitin.baizhi.monkeycode" / "monkeycode-cookies.json"
+        if p.is_file():
+            return p
+    return None
+
+
+def load_session_cookies() -> dict:
+    p = _cookie_file()
+    if p is None:
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    items = data if isinstance(data, list) else data.get("cookies", [])
+    out = {}
+    for c in items:
+        if isinstance(c, dict) and c.get("name") and c.get("value"):
+            out[c["name"]] = c["value"]
+    return out
+
+
+def _req(method: str, path: str, body=None):
+    cookies = load_session_cookies()
+    if not cookies:
+        raise RuntimeError("no monkeycode session (monkeycode-cookies.json 缺失或为空)")
+    headers = {"User-Agent": _UA, "Referer": BASE_API + "/",
+               "Accept": "application/json",
+               "Cookie": "; ".join(f"{k}={v}" for k, v in cookies.items() if v)}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    with httpx.Client(timeout=httpx.Timeout(60.0, connect=15.0),
+                      follow_redirects=True) as c:
+        r = c.request(method, BASE_API + path, json=body, headers=headers)
+    if r.status_code in (401, 403):
+        raise RuntimeError(f"session 无效（{r.status_code}，请重登 MonkeyCode 桌面端）")
+    try:
+        obj = r.json()
+    except Exception:
+        raise RuntimeError(f"上游返回非 JSON（{r.status_code}）")
+    if isinstance(obj, dict) and "code" in obj:
+        if obj.get("code") != 0:
+            raise RuntimeError(f"upstream code={obj.get('code')} msg={obj.get('message', '')}")
+        return obj.get("data")
+    return obj
+
+
+def get_wallet() -> dict:
+    """{'balance': 64079, 'daily_token_balance': N, 'daily_token_limit': N, ...}"""
+    return _req("GET", EP_WALLET) or {}
+
+
+def get_checkin_status() -> dict:
+    """{'checked_in': bool}"""
+    return _req("GET", EP_CHECKIN) or {}
+
+
+def _solve_captcha() -> str:
+    ch = _req("POST", EP_CAPTCHA_CHALLENGE)
+    if not isinstance(ch, dict):
+        raise RuntimeError("captcha challenge: bad response")
+    cfg = ch.get("challenge", {})
+    c, s, d = int(cfg.get("c", 0) or 0), int(cfg.get("s", 0) or 0), int(cfg.get("d", 0) or 0)
+    token = ch.get("token", "")
+    if c <= 0 or s <= 0 or d <= 0 or not token:
+        raise RuntimeError(f"captcha invalid config: {cfg}")
+    solutions = [_solve_sub(token, i, s, d) for i in range(1, c + 1)]
+    rd = _req("POST", EP_CAPTCHA_REDEEM, {"token": token, "solutions": solutions})
+    if not isinstance(rd, dict) or not rd.get("success") or not rd.get("token"):
+        raise RuntimeError("captcha redeem failed")
+    return rd["token"]
+
+
+def do_checkin() -> dict:
+    cap_token = _solve_captcha()
+    return _req("POST", EP_CHECKIN, {"captcha_token": cap_token}) or {}
