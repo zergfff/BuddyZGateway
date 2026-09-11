@@ -4,7 +4,7 @@
 对外：
   GET  /health                探活（含余额/模型数）
   GET  /v1/models             模型目录（静态 4 个，honor exposed_models）
-  POST /v1/chat/completions   对话（非流式；流式转非流式返回）
+  POST /v1/chat/completions   对话（非流式；流式转非流式返回；支持 tools/tool_calls）
   GET  /v1/balance            10M token 池余额
   POST /v1/claim              每日福利领取
 
@@ -489,12 +489,36 @@ def _ot_headers(model: str) -> dict:
     return h
 
 
-def _chat_prep(model: str, messages: list, max_tokens: int, stream: bool):
+def _tool_payload(tools, tool_choice) -> dict:
+    """把 OpenAI 的 tools/tool_choice 归一成上游能收的形态。
+
+    实测 snap-access：`tool_choice` 只接受**字符串** auto/required，OpenAI 的
+    对象形式（{"type":"function",...}）会 400 InferHub.001001005；不带则默认 auto。
+    `tool_choice="none"` 表示禁用工具，直接整块不带。
+    """
+    if not tools:
+        return {}
+    tc = tool_choice
+    if isinstance(tc, str) and tc.lower() == "none":
+        return {}
+    out = {"tools": tools}
+    if isinstance(tc, str) and tc.lower() in ("auto", "required"):
+        out["tool_choice"] = tc.lower()
+    elif isinstance(tc, dict):
+        out["tool_choice"] = "required"   # 对象形式上游不收，降级为强制
+    else:
+        out["tool_choice"] = "auto"
+    return out
+
+
+def _chat_prep(model: str, messages: list, max_tokens: int, stream: bool,
+               tools: list | None = None, tool_choice=None):
     """返回 (url, headers, raw)：调用方自建 httpx.Client（避免 GC 提前关连接）"""
     # 免费模型优先 ticket 独立链（实测有 benefit 路由），glm-5.2 走桌面 DPoP 链
     cred = ensure_creds(prefer="ticket" if model in BENEFIT_MODELS else "dpop")
     url = SNAP + "/api/v2/chat/completions"
     payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "stream": stream}
+    payload.update(_tool_payload(tools, tool_choice))
     raw = json.dumps(payload).encode()
     base = {"X-Security-Token": cred["security_token"], "Content-Type": "application/json"}
     base.update(_ot_headers(model))
@@ -502,10 +526,11 @@ def _chat_prep(model: str, messages: list, max_tokens: int, stream: bool):
     return url, headers, raw
 
 
-def _chat_upstream(model: str, messages: list, max_tokens: int):
+def _chat_upstream(model: str, messages: list, max_tokens: int,
+                   tools: list | None = None, tool_choice=None):
     """非流式对话，返回 (status, data)。必须用 requests（httpx 的 TLS 指纹会被路由层拒）。"""
     import requests as _rq
-    url, headers, raw = _chat_prep(model, messages, max_tokens, False)
+    url, headers, raw = _chat_prep(model, messages, max_tokens, False, tools, tool_choice)
     r = _rq.post(url, data=raw, headers=headers, timeout=900)
     try:
         return r.status_code, r.json()
@@ -531,14 +556,22 @@ app = FastAPI(title="CodeArts→OpenAI")
 
 @app.get("/oauth/callback")
 async def oauth_callback(req: Request):
-    """OAuth 回调：?secret= → 307 回 portal 跑完 → ?code=/ticket 换票存盘"""
+    """OAuth 回调：?secret=（+可选 ticket_id）换票存盘 → 否则 307 回 portal → ?code= 换票。"""
     from fastapi.responses import HTMLResponse, RedirectResponse
+    from urllib.parse import urlparse, parse_qs
     q = dict(req.query_params)
-    if "redirect" in q and "code" not in q and "ticket_id" not in q:
-        return RedirectResponse(url=q["redirect"], status_code=307)
+
+    def _ticket_from_redirect(url: str) -> str:
+        """ticket_id 常嵌在 redirect 的 query 里，顶层并没有。"""
+        try:
+            return (parse_qs(urlparse(url).query).get("ticket_id") or [""])[0]
+        except Exception:  # noqa: BLE001
+            return ""
+
+    # 必须先判 secret：否则带 redirect 的回调会被下面的 307 短路，换票代码永远走不到。
     if "secret" in q:
-        # ticket 登录流：用回调里的 ticket（取自 pending 或请求参数）
-        ticket_id = q.get("ticket_id", "")
+        # ticket 登录流：ticket_id 取顶层 → redirect 内嵌 → pending 兜底
+        ticket_id = q.get("ticket_id", "") or _ticket_from_redirect(q.get("redirect", ""))
         if not ticket_id:
             # 从 pending 里找唯一未过期的
             now = time.time()
@@ -555,6 +588,8 @@ async def oauth_callback(req: Request):
             return HTMLResponse("<html><body><h2>授权成功，可以关掉此页，回网关点“测试”验证</h2></body></html>")
         except Exception as e:  # noqa: BLE001
             return HTMLResponse(f"<html><body><h2>换票失败：{e}</h2></body></html>", status_code=400)
+    if "redirect" in q and "code" not in q:
+        return RedirectResponse(url=q["redirect"], status_code=307)
     if "code" in q:
         # 标准 OAuth code 流：用各 pending verifier 逐个试换
         import httpx as _hx
@@ -646,6 +681,8 @@ async def chat_completions(req: Request):
     model = resolve_model(body.get("model")) or resolve_model(_exposed()[0])
     max_tokens = int(body.get("max_tokens") or 1024)
     stream = bool(body.get("stream", False))
+    tools = body.get("tools") or None
+    tool_choice = body.get("tool_choice")
     try:
         if stream:
             from fastapi.responses import StreamingResponse
@@ -653,7 +690,7 @@ async def chat_completions(req: Request):
             async def gen():
                 import requests as _rq
                 try:
-                    url, headers, raw = _chat_prep(model, msgs, max_tokens, True)
+                    url, headers, raw = _chat_prep(model, msgs, max_tokens, True, tools, tool_choice)
                 except RuntimeError as e:
                     yield ("data: " + json.dumps(
                         {"error": {"message": str(e), "type": "config_error"}})
@@ -702,7 +739,7 @@ async def chat_completions(req: Request):
                     yield b"data: [DONE]\n\n"
 
             return StreamingResponse(gen(), media_type="text/event-stream")
-        status, data = _chat_upstream(model, msgs, max_tokens)
+        status, data = _chat_upstream(model, msgs, max_tokens, tools, tool_choice)
         return JSONResponse(content=data, status_code=status)
     except httpx.HTTPError as e:
         return JSONResponse({"error": {"message": f"upstream error: {e}", "type": "upstream_error"}},
