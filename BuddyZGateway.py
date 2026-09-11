@@ -34,7 +34,7 @@ import webbrowser
 from pathlib import Path
 
 APP_NAME = "BuddyZGateway"
-VERSION = "1.6.0"
+VERSION = "1.7.0"
 
 # ---------------------------------------------------------------------------
 # 路径
@@ -1971,167 +1971,174 @@ _EMBEDDED: dict[str, str] = {
     "YmFzZSddfSAg5pq06Zyy5qih5Z6L77yae0NPTkZJR1snZXhwb3NlZF9tb2RlbHMnXSBvciAn5YWo6YOoJ30iKQogICAgdXZpY29y"
     "bi5ydW4oYXBwLCBob3N0PWFyZ3MuaG9zdCwgcG9ydD1hcmdzLnBvcnQsIGxvZ19sZXZlbD0iaW5mbyIsIGxpZmVzcGFuPSJvbiIp"
     "CgppZiBfX25hbWVfXyA9PSAiX19tYWluX18iOgogICAgbWFpbigpCg==",
-        "catpaw2openai/catpaw2openai.py":
-    "IiIiY2F0cGF3Mm9wZW5haTogcHJveHkg576O5ZuiIENhdFBhdyBhZ2VudCB1cHN0cmVhbSBhcyBPcGVuQUktY29tcGF0aWJsZSBB"
-    "UEkuCgpSZWFkcyBhdXRoIGZyb20gfi8ubWVpdHVhbi1jYXRwYXcvYXV0aC5qc29uIChhdXRoLmFjY2Vzc1Rva2VuLCBkZXNrdG9w"
-    "IGxvZ2luIHJlcXVpcmVkKS4KRmxvdyBwZXIgcmVxdWVzdDogcm91bmQgLT4gZXZlbnQocnVubmluZykgLT4gdHVybihTU0UpIG9u"
-    "Cmh0dHBzOi8vYWkuY2F0cGF3Lm1laXR1YW4uY29tLCBtYXBwZWQgdG8gT3BlbkFJIHNoYXBlLgpVcHN0cmVhbSB0dXJuIFNTRSBm"
-    "cmFtZXMgY2FycnkgRlVMTCB0ZXh0IHNuYXBzaG90czsgd2UgZGlmZiB0aGVtIGludG8gZGVsdGFzLgoKLSBHRVQgIC92MS9tb2Rl"
-    "bHMgICAgICAgICAgICAtPiBbeyJpZCI6ICJjYXRwYXciLCAuLi59XQotIFBPU1QgL3YxL2NoYXQvY29tcGxldGlvbnMgIC0+IHVw"
-    "c3RyZWFtIHJvdW5kL2V2ZW50L3R1cm4gKHN0cmVhbSArIG5vbi1zdHJlYW0pCiIiIgpmcm9tIF9fZnV0dXJlX18gaW1wb3J0IGFu"
-    "bm90YXRpb25zCmltcG9ydCBhcmdwYXJzZSwganNvbiwgdGltZSwgdXVpZApmcm9tIHBhdGhsaWIgaW1wb3J0IFBhdGgKZnJvbSB0"
-    "eXBpbmcgaW1wb3J0IEFueQppbXBvcnQgaHR0cHgKZnJvbSBmYXN0YXBpIGltcG9ydCBGYXN0QVBJLCBIVFRQRXhjZXB0aW9uLCBS"
-    "ZXF1ZXN0CmZyb20gZmFzdGFwaS5yZXNwb25zZXMgaW1wb3J0IEpTT05SZXNwb25zZSwgU3RyZWFtaW5nUmVzcG9uc2UKaW1wb3J0"
-    "IHV2aWNvcm4KCkNPTkZJRzogZGljdFtzdHIsIEFueV0gPSB7CiAgICAiYXBpX2Jhc2UiOiAiaHR0cHM6Ly9haS5jYXRwYXcubWVp"
-    "dHVhbi5jb20iLAogICAgImF1dGhfZmlsZSI6IHN0cihQYXRoLmhvbWUoKSAvICIubWVpdHVhbi1jYXRwYXciIC8gImF1dGguanNv"
-    "biIpLAogICAgIm1vZGVsX3R5cGUiOiA3NywKICAgICJzb3VyY2UiOiAiQ2F0WCIsCiAgICAibW9kZSI6ICJDTEkiLAogICAgInRv"
-    "b2xfdmVyc2lvbiI6ICIyLjAuMiIsCiAgICAibW9kZWxfaWQiOiAiTG9uZ0NhdC0yLjAiLAogICAgImV4cG9zZWRfbW9kZWxzIjog"
-    "W10sCiAgICAibG9nX3BhdGgiOiBOb25lLAogICAgInRpbWVvdXQiOiAxODAsCn0KX2xvZ19maCA9IE5vbmUKCmRlZiBsb2cobXNn"
-    "OiBzdHIpIC0+IE5vbmU6CiAgICBsaW5lID0gZiJbe3RpbWUuc3RyZnRpbWUoJyVIOiVNOiVTJyl9XSB7bXNnfSIKICAgIHByaW50"
-    "KGxpbmUsIGZsdXNoPVRydWUpCiAgICBwID0gQ09ORklHLmdldCgibG9nX3BhdGgiKQogICAgaWYgcDoKICAgICAgICBnbG9iYWwg"
-    "X2xvZ19maAogICAgICAgIHRyeToKICAgICAgICAgICAgaWYgX2xvZ19maCBpcyBOb25lIG9yIGdldGF0dHIoX2xvZ19maCwgImNs"
-    "b3NlZCIsIEZhbHNlKToKICAgICAgICAgICAgICAgIF9sb2dfZmggPSBvcGVuKHAsICJhIiwgZW5jb2Rpbmc9InV0Zi04IikKICAg"
-    "ICAgICAgICAgX2xvZ19maC53cml0ZShsaW5lICsgIlxuIik7IF9sb2dfZmguZmx1c2goKQogICAgICAgIGV4Y2VwdCBFeGNlcHRp"
-    "b246IHBhc3MKCmRlZiBfZ2V0X3Rva2VuKCkgLT4gc3RyOgogICAgcCA9IFBhdGgoQ09ORklHWyJhdXRoX2ZpbGUiXSkKICAgIGlm"
-    "IG5vdCBwLmlzX2ZpbGUoKToKICAgICAgICByYWlzZSBSdW50aW1lRXJyb3IoZiLmnKrmib7liLAgQ2F0UGF3IGF1dGguanNvbu+8"
-    "mntwfe+8iOivt+WFiOeUqCBDYXRQYXcg5qGM6Z2i56uv55m75b2V5LiA5qyh77yJIikKICAgIGQgPSBqc29uLmxvYWRzKHAucmVh"
-    "ZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpKQogICAgdG9rID0gKGQuZ2V0KCJhdXRoIikgb3Ige30pLmdldCgiYWNjZXNzVG9rZW4i"
-    "KSBvciBkLmdldCgiYWNjZXNzVG9rZW4iKSBvciAiIgogICAgaWYgbm90IHRvazoKICAgICAgICByYWlzZSBSdW50aW1lRXJyb3Io"
-    "ZiJDYXRQYXcgYXV0aC5qc29uIOWGheaXoCBhY2Nlc3NUb2tlbu+8mntwfSIpCiAgICByZXR1cm4gdG9rCgpkZWYgX2hlYWRlcnMo"
-    "dG9rOiBzdHIsIHNzZTogYm9vbCA9IEZhbHNlKSAtPiBkaWN0OgogICAgaCA9IHsiWC1QYXNzcG9ydC1Ub2tlbiI6IHRvaywgIkNv"
-    "bnRlbnQtVHlwZSI6ICJhcHBsaWNhdGlvbi9qc29uIn0KICAgIGlmIHNzZToKICAgICAgICBoLnVwZGF0ZSh7IkFjY2VwdCI6ICJ0"
-    "ZXh0L2V2ZW50LXN0cmVhbSIsICJDYWNoZS1Db250cm9sIjogIm5vLWNhY2hlIn0pCiAgICByZXR1cm4gaAoKZGVmIF9tZXNzYWdl"
-    "c190b19wcm9tcHQobWVzc2FnZXM6IGxpc3RbZGljdF0pIC0+IHN0cjoKICAgICIiIk9wZW5BSSBtZXNzYWdlcyAtPiDljZXmnaEg"
-    "cHJvbXB077yac3lzdGVtIOS9nOWJjee8gO+8jGhpc3Rvcnkg5ou85LiK5LiL5paH77yM5pyA5ZCO5LiA5p2hIHVzZXIg5Li65Li7"
-    "44CCIiIiCiAgICBzeXNfcGFydHMsIHR1cm5zID0gW10sIFtdCiAgICBmb3IgbSBpbiBtZXNzYWdlcyBvciBbXToKICAgICAgICBy"
-    "b2xlLCBjb250ZW50ID0gbS5nZXQoInJvbGUiLCAidXNlciIpLCBtLmdldCgiY29udGVudCIpIG9yICIiCiAgICAgICAgaWYgaXNp"
-    "bnN0YW5jZShjb250ZW50LCBsaXN0KToKICAgICAgICAgICAgY29udGVudCA9ICIiLmpvaW4ocC5nZXQoInRleHQiLCAiIikgZm9y"
-    "IHAgaW4gY29udGVudCBpZiBpc2luc3RhbmNlKHAsIGRpY3QpIGFuZCBwLmdldCgidHlwZSIpID09ICJ0ZXh0IikKICAgICAgICBj"
-    "b250ZW50ID0gc3RyKGNvbnRlbnQpCiAgICAgICAgaWYgcm9sZSA9PSAic3lzdGVtIjoKICAgICAgICAgICAgc3lzX3BhcnRzLmFw"
-    "cGVuZChjb250ZW50KQogICAgICAgIGVsaWYgcm9sZSA9PSAiYXNzaXN0YW50IjoKICAgICAgICAgICAgdHVybnMuYXBwZW5kKGYi"
-    "5Yqp5omL77yae2NvbnRlbnR9IikKICAgICAgICBlbHNlOgogICAgICAgICAgICB0dXJucy5hcHBlbmQoZiLnlKjmiLfvvJp7Y29u"
-    "dGVudH0iKQogICAgaGVhZCA9ICgi44CQ57O757uf6K6+5a6a44CRXG4iICsgIlxuIi5qb2luKHN5c19wYXJ0cykgKyAiXG5cbiIp"
-    "IGlmIHN5c19wYXJ0cyBlbHNlICIiCiAgICByZXR1cm4gaGVhZCArICJcbiIuam9pbih0dXJucykgaWYgdHVybnMgZWxzZSBoZWFk"
-    "CgpkZWYgX3JvdW5kKGNsaWVudDogaHR0cHguQ2xpZW50LCBiYXNlOiBzdHIsIGhlYWRlcnM6IGRpY3QsIGNpZDogc3RyLCBwcm9t"
-    "cHQ6IHN0cikgLT4gTm9uZToKICAgIGJvZHkgPSB7ImNvbnZlcnNhdGlvbklkIjogY2lkLAogICAgICAgICAgICAibWVzc2FnZSI6"
-    "IHsidHlwZSI6ICJ1c2VyIiwgIm1lc3NhZ2VJZCI6IHN0cih1dWlkLnV1aWQ0KCkpLAogICAgICAgICAgICAgICAgICAgICAgICAi"
-    "Y29udGVudCI6IFt7InR5cGUiOiAidGV4dCIsICJ0ZXh0IjogcHJvbXB0fV19LAogICAgICAgICAgICAibW9kZWxUeXBlIjogQ09O"
-    "RklHWyJtb2RlbF90eXBlIl0sICJzb3VyY2UiOiBDT05GSUdbInNvdXJjZSJdLCAibW9kZSI6IENPTkZJR1sibW9kZSJdfQogICAg"
-    "ciA9IGNsaWVudC5wb3N0KGJhc2UgKyAiL2FwaS9hZ2VudC9jb252ZXJzYXRpb24vcm91bmQiLCBqc29uPWJvZHksIGhlYWRlcnM9"
-    "aGVhZGVycykKICAgIHRyeTogZCA9IHIuanNvbigpCiAgICBleGNlcHQgRXhjZXB0aW9uOiByYWlzZSBSdW50aW1lRXJyb3IoZiJy"
-    "b3VuZCDpnZ4gSlNPTu+8mntyLnN0YXR1c19jb2RlfSB7ci50ZXh0WzoyMDBdfSIpCiAgICBpZiBkLmdldCgiY29kZSIpICE9IDA6"
-    "CiAgICAgICAgcmFpc2UgUnVudGltZUVycm9yKGYicm91bmQg5aSx6LSl77yae2QuZ2V0KCdtc2cnKX0iKQoKZGVmIF9ldmVudF9y"
-    "dW5uaW5nKGNsaWVudDogaHR0cHguQ2xpZW50LCBiYXNlOiBzdHIsIGhlYWRlcnM6IGRpY3QsIGNpZDogc3RyKSAtPiBOb25lOgog"
-    "ICAgYm9keSA9IHsiY29udmVyc2F0aW9uSWQiOiBjaWQsICJldmVudFR5cGUiOiAiY29udmVyc2F0aW9uIiwgImRhdGEiOiB7InN0"
-    "YXR1cyI6ICJydW5uaW5nIn19CiAgICByID0gY2xpZW50LnBvc3QoYmFzZSArICIvYXBpL2FnZW50L2NvbnZlcnNhdGlvbi9ldmVu"
-    "dCIsIGpzb249Ym9keSwgaGVhZGVycz1oZWFkZXJzKQogICAgdHJ5OiBkID0gci5qc29uKCkKICAgIGV4Y2VwdCBFeGNlcHRpb246"
-    "IHJhaXNlIFJ1bnRpbWVFcnJvcihmImV2ZW50IOmdniBKU09O77yae3Iuc3RhdHVzX2NvZGV9IHtyLnRleHRbOjIwMF19IikKICAg"
-    "IGlmIGQuZ2V0KCJjb2RlIikgIT0gMDoKICAgICAgICByYWlzZSBSdW50aW1lRXJyb3IoZiJldmVudCDlpLHotKXvvJp7ZC5nZXQo"
-    "J21zZycpfSIpCgpkZWYgX2l0ZXJfdHVybl90ZXh0cyhjbGllbnQ6IGh0dHB4LkNsaWVudCwgYmFzZTogc3RyLCBoZWFkZXJzOiBk"
-    "aWN0LCBjaWQ6IHN0ciwgcHJvbXB0OiBzdHIpOgogICAgIiIieWllbGQg5LiK5ri4IHR1cm4gU1NFIOeahOWFqOmHjyB0ZXh0IOW/"
-    "q+eFp++8iOacgOWQjiBbRE9ORV0g57uT5p2f77yJ44CCIiIiCiAgICBib2R5ID0geyJjb252ZXJzYXRpb25JZCI6IGNpZCwgInR1"
-    "cm5SZXF1ZXN0SWQiOiBzdHIodXVpZC51dWlkNCgpKVs6MzJdLAogICAgICAgICAgICAibWVzc2FnZSI6IHsidHlwZSI6ICJ1c2Vy"
-    "IiwgIm1lc3NhZ2VJZCI6IHN0cih1dWlkLnV1aWQ0KCkpLAogICAgICAgICAgICAgICAgICAgICAgICAiY29udGVudCI6IFt7InR5"
-    "cGUiOiAidGV4dCIsICJ0ZXh0IjogcHJvbXB0fV19LAogICAgICAgICAgICAic291cmNlIjogQ09ORklHWyJzb3VyY2UiXSwgIm1v"
-    "ZGVsVHlwZSI6IENPTkZJR1sibW9kZWxfdHlwZSJdLAogICAgICAgICAgICAibW9kZSI6IENPTkZJR1sibW9kZSJdLCAic3RyZWFt"
-    "IjogVHJ1ZSwgInRvb2xWZXJzaW9uIjogQ09ORklHWyJ0b29sX3ZlcnNpb24iXX0KICAgIHdpdGggY2xpZW50LnN0cmVhbSgiUE9T"
-    "VCIsIGJhc2UgKyAiL2FwaS9hZ2VudC9jb252ZXJzYXRpb24vdHVybiIsCiAgICAgICAgICAgICAgICAgICAgICAganNvbj1ib2R5"
-    "LCBoZWFkZXJzPWhlYWRlcnMpIGFzIHI6CiAgICAgICAgaWYgci5zdGF0dXNfY29kZSAhPSAyMDA6CiAgICAgICAgICAgIHJhaXNl"
-    "IFJ1bnRpbWVFcnJvcihmInR1cm4gSFRUUCB7ci5zdGF0dXNfY29kZX3vvJp7ci5yZWFkKCkuZGVjb2RlKCd1dGYtOCcsJ3JlcGxh"
-    "Y2UnKVs6MzAwXX0iKQogICAgICAgIGZvciBsaW5lIGluIHIuaXRlcl9saW5lcygpOgogICAgICAgICAgICBpZiBub3QgbGluZSBv"
-    "ciBub3QgbGluZS5zdGFydHN3aXRoKCJkYXRhOiIpOgogICAgICAgICAgICAgICAgY29udGludWUKICAgICAgICAgICAgcGF5bG9h"
-    "ZCA9IGxpbmVbNTpdLnN0cmlwKCkKICAgICAgICAgICAgaWYgcGF5bG9hZCA9PSAiW0RPTkVdIjoKICAgICAgICAgICAgICAgIGJy"
-    "ZWFrCiAgICAgICAgICAgIHRyeTogZCA9IGpzb24ubG9hZHMocGF5bG9hZCkKICAgICAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbjog"
-    "Y29udGludWUKICAgICAgICAgICAgaWYgaXNpbnN0YW5jZShkLCBkaWN0KSBhbmQgZC5nZXQoImVycm9yIik6CiAgICAgICAgICAg"
-    "ICAgICByYWlzZSBSdW50aW1lRXJyb3IoZiJ0dXJuIOaKpemUme+8mnsoZFsnZXJyb3InXSBvciB7fSkuZ2V0KCdtZXNzYWdlJyl9"
-    "IikKICAgICAgICAgICAgbXNnID0gKGQuZ2V0KCJtZXNzYWdlIikgb3Ige30pIGlmIGlzaW5zdGFuY2UoZCwgZGljdCkgZWxzZSB7"
-    "fQogICAgICAgICAgICBmb3IgYyBpbiAobXNnLmdldCgiY29udGVudCIpIG9yIFtdKToKICAgICAgICAgICAgICAgIGlmIGlzaW5z"
-    "dGFuY2UoYywgZGljdCkgYW5kIGMuZ2V0KCJ0eXBlIikgPT0gInRleHQiIGFuZCBjLmdldCgidGV4dCIpIGlzIG5vdCBOb25lOgog"
-    "ICAgICAgICAgICAgICAgICAgIHlpZWxkIGNbInRleHQiXQoKZGVmIF9jaGVja19tb2RlbChyZXFfbW9kZWw6IHN0ciB8IE5vbmUp"
-    "IC0+IE5vbmU6CiAgICBleHAgPSBDT05GSUcuZ2V0KCJleHBvc2VkX21vZGVscyIpIG9yIFtdCiAgICBpZiBleHAgYW5kIHJlcV9t"
-    "b2RlbCBhbmQgcmVxX21vZGVsIG5vdCBpbiBleHA6CiAgICAgICAgcmFpc2UgSFRUUEV4Y2VwdGlvbihzdGF0dXNfY29kZT00MDQs"
-    "IGRldGFpbD1mIuaooeWeiyB7cmVxX21vZGVsfSDmnKrmmrTpnLLvvIjlvZPliY3mmrTpnLLvvJp7ZXhwfe+8iSIpCgpkZWYgX3Rv"
-    "X29wZW5haShtb2RlbHM6IGxpc3Rbc3RyXSkgLT4gbGlzdFtkaWN0XToKICAgIHRzID0gaW50KHRpbWUudGltZSgpKQogICAgcmV0"
-    "dXJuIFt7ImlkIjogbiwgIm9iamVjdCI6ICJtb2RlbCIsICJjcmVhdGVkIjogdHMsICJvd25lZF9ieSI6ICJjYXRwYXcifSBmb3Ig"
-    "biBpbiBtb2RlbHNdCgpkZWYgbGlzdF9tb2RlbHMoKSAtPiBsaXN0W2RpY3RdOgogICAgcmV0dXJuIF90b19vcGVuYWkoW0NPTkZJ"
-    "R1sibW9kZWxfaWQiXV0pCgpkZWYgX2ZpbHRlcl9leHBvc2VkKG1vZGVsczogbGlzdFtkaWN0XSkgLT4gbGlzdFtkaWN0XToKICAg"
-    "IGV4cCA9IENPTkZJRy5nZXQoImV4cG9zZWRfbW9kZWxzIikgb3IgW10KICAgIGlmIG5vdCBleHA6IHJldHVybiBtb2RlbHMKICAg"
-    "IHJldHVybiBbbSBmb3IgbSBpbiBtb2RlbHMgaWYgbVsiaWQiXSBpbiBzZXQoZXhwKV0KCmFwcCA9IEZhc3RBUEkodGl0bGU9ImNh"
-    "dHBhdzJvcGVuYWkiLCB2ZXJzaW9uPSIxLjAuMCIpCgpAYXBwLmdldCgiLyIpCmRlZiByb290KCk6CiAgICByZXR1cm4geyJzZXJ2"
-    "aWNlIjogImNhdHBhdzJvcGVuYWkiLCAidXBzdHJlYW0iOiBDT05GSUdbImFwaV9iYXNlIl0sICJ2ZXJzaW9uIjogIjEuMC4wIn0K"
-    "CkBhcHAuZ2V0KCIvaGVhbHRoIikKZGVmIGhlYWx0aCgpOgogICAgcmV0dXJuIHsib2siOiBUcnVlLCAidHMiOiB0aW1lLnRpbWUo"
-    "KX0KCkBhcHAuZ2V0KCIvdjEvbW9kZWxzIikKZGVmIG1vZGVsc19yb3V0ZSgpOgogICAgcmV0dXJuIHsib2JqZWN0IjogImxpc3Qi"
-    "LCAiZGF0YSI6IF9maWx0ZXJfZXhwb3NlZChsaXN0X21vZGVscygpKX0KCkBhcHAuZ2V0KCIvdjEvYmFsYW5jZSIpCmRlZiBiYWxh"
-    "bmNlX3JvdXRlKCk6CiAgICB0cnk6CiAgICAgICAgdG9rID0gX2dldF90b2tlbigpCiAgICAgICAgcmV0dXJuIHsib2siOiBUcnVl"
-    "LCAiYXV0aCI6IFRydWUsICJ0b2tlbl9sZW4iOiBsZW4odG9rKSwKICAgICAgICAgICAgICAgICJhdXRoX3BhdGgiOiBzdHIoQ09O"
-    "RklHWyJhdXRoX2ZpbGUiXSksCiAgICAgICAgICAgICAgICAibm90ZSI6ICJDYXRQYXcg5LiK5ri45peg5YWs5byA5L2Z6aKd5p+l"
-    "6K+i5o6l5Y+jIn0KICAgIGV4Y2VwdCBFeGNlcHRpb24gYXMgZToKICAgICAgICByZXR1cm4gSlNPTlJlc3BvbnNlKHsib2siOiBG"
-    "YWxzZSwgImVycm9yIjogc3RyKGUpfSwgc3RhdHVzX2NvZGU9NTAwKQoKQGFwcC5wb3N0KCIvdjEvY2hhdC9jb21wbGV0aW9ucyIp"
-    "CmFzeW5jIGRlZiBjaGF0X2NvbXBsZXRpb25zKHJlcXVlc3Q6IFJlcXVlc3QpOgogICAgdHJ5OiBib2R5ID0gYXdhaXQgcmVxdWVz"
-    "dC5qc29uKCkKICAgIGV4Y2VwdCBFeGNlcHRpb246IHJhaXNlIEhUVFBFeGNlcHRpb24oc3RhdHVzX2NvZGU9NDAwLCBkZXRhaWw9"
-    "ImJvZHkg5b+F6aG75pivIEpTT04iKQogICAgX2NoZWNrX21vZGVsKGJvZHkuZ2V0KCJtb2RlbCIpKQogICAgc3RyZWFtID0gYm9v"
-    "bChib2R5LmdldCgic3RyZWFtIikpCiAgICBwcm9tcHQgPSBfbWVzc2FnZXNfdG9fcHJvbXB0KGJvZHkuZ2V0KCJtZXNzYWdlcyIp"
-    "IG9yIFtdKQogICAgaWYgbm90IHByb21wdC5zdHJpcCgpOgogICAgICAgIHJhaXNlIEhUVFBFeGNlcHRpb24oc3RhdHVzX2NvZGU9"
-    "NDAwLCBkZXRhaWw9Im1lc3NhZ2VzIOS4uuepuiIpCiAgICBiYXNlLCB0aW1lb3V0ID0gQ09ORklHWyJhcGlfYmFzZSJdLCBDT05G"
-    "SUdbInRpbWVvdXQiXQogICAgdHJ5OgogICAgICAgIHRvayA9IF9nZXRfdG9rZW4oKQogICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBl"
-    "OgogICAgICAgIHJldHVybiBKU09OUmVzcG9uc2UoeyJlcnJvciI6IHN0cihlKSwgInR5cGUiOiAiYXV0aF9lcnJvciJ9LCBzdGF0"
-    "dXNfY29kZT01MDIpCiAgICBoZWFkZXJzID0gX2hlYWRlcnModG9rKQogICAgc3NlX2hlYWRlcnMgPSBfaGVhZGVycyh0b2ssIHNz"
-    "ZT1UcnVlKQogICAgY2lkID0gc3RyKHV1aWQudXVpZDQoKSkKICAgIGNyZWF0ZWQgPSBpbnQodGltZS50aW1lKCkpCiAgICBjbXBs"
-    "X2lkID0gImNoYXRjbXBsLSIgKyBjaWRbOjhdCiAgICBtb2RlbF9pZCA9IENPTkZJR1sibW9kZWxfaWQiXQoKICAgIGRlZiBydW5f"
-    "dHVybigpIC0+IHN0cjoKICAgICAgICBmdWxsID0gIiIKICAgICAgICB3aXRoIGh0dHB4LkNsaWVudCh0aW1lb3V0PXRpbWVvdXQp"
-    "IGFzIGNsaWVudDoKICAgICAgICAgICAgX3JvdW5kKGNsaWVudCwgYmFzZSwgaGVhZGVycywgY2lkLCBwcm9tcHQpCiAgICAgICAg"
-    "ICAgIF9ldmVudF9ydW5uaW5nKGNsaWVudCwgYmFzZSwgaGVhZGVycywgY2lkKQogICAgICAgICAgICBmb3Igc25hcHNob3QgaW4g"
-    "X2l0ZXJfdHVybl90ZXh0cyhjbGllbnQsIGJhc2UsIHNzZV9oZWFkZXJzLCBjaWQsIHByb21wdCk6CiAgICAgICAgICAgICAgICBm"
-    "dWxsID0gc25hcHNob3QgICMg5LiK5ri45piv5YWo6YeP5b+r54Wn77yM5Y+W5pyA5ZCO5LiA5Lu9CiAgICAgICAgcmV0dXJuIGZ1"
-    "bGwKCiAgICBpZiBub3Qgc3RyZWFtOgogICAgICAgIHRyeToKICAgICAgICAgICAgZnVsbCA9IGF3YWl0IF9ydW5faW5fdGhyZWFk"
-    "KHJ1bl90dXJuKQogICAgICAgIGV4Y2VwdCBFeGNlcHRpb24gYXMgZToKICAgICAgICAgICAgbG9nKGYiW2NhdHBhd10gY2hhdCDk"
-    "uIrmuLjlvILluLjvvJp7ZX0iKQogICAgICAgICAgICByZXR1cm4gSlNPTlJlc3BvbnNlKHsiZXJyb3IiOiBzdHIoZSksICJ0eXBl"
-    "IjogInVwc3RyZWFtX2Vycm9yIn0sIHN0YXR1c19jb2RlPTUwMikKICAgICAgICByZXR1cm4geyJpZCI6IGNtcGxfaWQsICJvYmpl"
-    "Y3QiOiAiY2hhdC5jb21wbGV0aW9uIiwgImNyZWF0ZWQiOiBjcmVhdGVkLCAibW9kZWwiOiBtb2RlbF9pZCwKICAgICAgICAgICAg"
-    "ICAgICJjaG9pY2VzIjogW3siaW5kZXgiOiAwLCAibWVzc2FnZSI6IHsicm9sZSI6ICJhc3Npc3RhbnQiLCAiY29udGVudCI6IGZ1"
-    "bGx9LAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICJmaW5pc2hfcmVhc29uIjogInN0b3AifV0sCiAgICAgICAgICAgICAg"
-    "ICAidXNhZ2UiOiB7InByb21wdF90b2tlbnMiOiAwLCAiY29tcGxldGlvbl90b2tlbnMiOiAwLCAidG90YWxfdG9rZW5zIjogMH19"
-    "CgogICAgZGVmIGdlbigpOgogICAgICAgIHNlbnQgPSAiIgogICAgICAgIHRyeToKICAgICAgICAgICAgd2l0aCBodHRweC5DbGll"
-    "bnQodGltZW91dD10aW1lb3V0KSBhcyBjbGllbnQ6CiAgICAgICAgICAgICAgICBfcm91bmQoY2xpZW50LCBiYXNlLCBoZWFkZXJz"
-    "LCBjaWQsIHByb21wdCkKICAgICAgICAgICAgICAgIF9ldmVudF9ydW5uaW5nKGNsaWVudCwgYmFzZSwgaGVhZGVycywgY2lkKQog"
-    "ICAgICAgICAgICAgICAgZm9yIHNuYXBzaG90IGluIF9pdGVyX3R1cm5fdGV4dHMoY2xpZW50LCBiYXNlLCBzc2VfaGVhZGVycywg"
-    "Y2lkLCBwcm9tcHQpOgogICAgICAgICAgICAgICAgICAgIGRlbHRhID0gc25hcHNob3RbbGVuKHNlbnQpOl0gaWYgc25hcHNob3Qu"
-    "c3RhcnRzd2l0aChzZW50KSBlbHNlIHNuYXBzaG90CiAgICAgICAgICAgICAgICAgICAgc2VudCA9IHNuYXBzaG90CiAgICAgICAg"
-    "ICAgICAgICAgICAgaWYgZGVsdGE6CiAgICAgICAgICAgICAgICAgICAgICAgIHlpZWxkICJkYXRhOiAiICsganNvbi5kdW1wcygK"
-    "ICAgICAgICAgICAgICAgICAgICAgICAgICAgIHsiaWQiOiBjbXBsX2lkLCAib2JqZWN0IjogImNoYXQuY29tcGxldGlvbi5jaHVu"
-    "ayIsICJjcmVhdGVkIjogY3JlYXRlZCwKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAibW9kZWwiOiBtb2RlbF9pZCwKICAg"
-    "ICAgICAgICAgICAgICAgICAgICAgICAgICAiY2hvaWNlcyI6IFt7ImluZGV4IjogMCwgImRlbHRhIjogeyJyb2xlIjogImFzc2lz"
-    "dGFudCIsICJjb250ZW50IjogZGVsdGF9LAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAiZmluaXNo"
-    "X3JlYXNvbiI6IE5vbmV9XX0sIGVuc3VyZV9hc2NpaT1GYWxzZSkgKyAiXG5cbiIKICAgICAgICBleGNlcHQgRXhjZXB0aW9uIGFz"
-    "IGU6CiAgICAgICAgICAgIHlpZWxkICJkYXRhOiAiICsganNvbi5kdW1wcyh7ImVycm9yIjogc3RyKGUpLCAidHlwZSI6ICJ1cHN0"
-    "cmVhbV9lcnJvciJ9KSArICJcblxuIgogICAgICAgIHlpZWxkICJkYXRhOiAiICsganNvbi5kdW1wcygKICAgICAgICAgICAgeyJp"
-    "ZCI6IGNtcGxfaWQsICJvYmplY3QiOiAiY2hhdC5jb21wbGV0aW9uLmNodW5rIiwgImNyZWF0ZWQiOiBjcmVhdGVkLCAibW9kZWwi"
-    "OiBtb2RlbF9pZCwKICAgICAgICAgICAgICJjaG9pY2VzIjogW3siaW5kZXgiOiAwLCAiZGVsdGEiOiB7fSwgImZpbmlzaF9yZWFz"
-    "b24iOiAic3RvcCJ9XX0pICsgIlxuXG4iCiAgICAgICAgeWllbGQgImRhdGE6IFtET05FXVxuXG4iCgogICAgcmV0dXJuIFN0cmVh"
-    "bWluZ1Jlc3BvbnNlKGdlbigpLCBtZWRpYV90eXBlPSJ0ZXh0L2V2ZW50LXN0cmVhbSIsCiAgICAgICAgICAgICAgICAgICAgICAg"
-    "ICAgICAgaGVhZGVycz17IkNhY2hlLUNvbnRyb2wiOiAibm8tY2FjaGUiLCAiQ29ubmVjdGlvbiI6ICJrZWVwLWFsaXZlIiwKICAg"
-    "ICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAiWC1BY2NlbC1CdWZmZXJpbmciOiAibm8ifSkKCmltcG9ydCBhc3lu"
-    "Y2lvIGFzIF9hc3luY2lvCmFzeW5jIGRlZiBfcnVuX2luX3RocmVhZChmbik6CiAgICByZXR1cm4gYXdhaXQgX2FzeW5jaW8udG9f"
-    "dGhyZWFkKGZuKQoKZGVmIHBhcnNlX2FyZ3MoYXJndj1Ob25lKToKICAgIHAgPSBhcmdwYXJzZS5Bcmd1bWVudFBhcnNlcigpCiAg"
-    "ICBwLmFkZF9hcmd1bWVudCgiLS1ob3N0IiwgZGVmYXVsdD0iMTI3LjAuMC4xIikKICAgIHAuYWRkX2FyZ3VtZW50KCItLXBvcnQi"
-    "LCB0eXBlPWludCwgZGVmYXVsdD05MzAwKQogICAgcC5hZGRfYXJndW1lbnQoIi0tYXBpLWJhc2UiLCBkZWZhdWx0PUNPTkZJR1si"
-    "YXBpX2Jhc2UiXSkKICAgIHAuYWRkX2FyZ3VtZW50KCItLWF1dGgtZmlsZSIsIGRlZmF1bHQ9Q09ORklHWyJhdXRoX2ZpbGUiXSkK"
-    "ICAgIHAuYWRkX2FyZ3VtZW50KCItLW1vZGVsLXR5cGUiLCB0eXBlPWludCwgZGVmYXVsdD1DT05GSUdbIm1vZGVsX3R5cGUiXSkK"
-    "ICAgIHAuYWRkX2FyZ3VtZW50KCItLWV4cG9zZSIsIGRlZmF1bHQ9IiIsIGhlbHA9IumAl+WPt+WIhumalOeahOaooeWei+eZveWQ"
-    "jeWNle+8m+epuj3lhajpg6jmmrTpnLIiKQogICAgcC5hZGRfYXJndW1lbnQoIi0tbG9nIiwgZGVmYXVsdD1DT05GSUdbImxvZ19w"
-    "YXRoIl0pCiAgICBwLmFkZF9hcmd1bWVudCgiLS10aW1lb3V0IiwgdHlwZT1pbnQsIGRlZmF1bHQ9Q09ORklHWyJ0aW1lb3V0Il0p"
-    "CiAgICByZXR1cm4gcC5wYXJzZV9hcmdzKGFyZ3YpCgpkZWYgbWFpbihhcmd2PU5vbmUpOgogICAgYXJncyA9IHBhcnNlX2FyZ3Mo"
-    "YXJndikKICAgIENPTkZJR1siYXBpX2Jhc2UiXSA9IGFyZ3MuYXBpX2Jhc2UucnN0cmlwKCIvIikKICAgIENPTkZJR1siYXV0aF9m"
-    "aWxlIl0gPSBhcmdzLmF1dGhfZmlsZQogICAgQ09ORklHWyJtb2RlbF90eXBlIl0gPSBhcmdzLm1vZGVsX3R5cGUKICAgIENPTkZJ"
-    "R1siZXhwb3NlZF9tb2RlbHMiXSA9IFtzLnN0cmlwKCkgZm9yIHMgaW4gYXJncy5leHBvc2Uuc3BsaXQoIiwiKSBpZiBzLnN0cmlw"
-    "KCldCiAgICBDT05GSUdbImxvZ19wYXRoIl0gPSBhcmdzLmxvZwogICAgQ09ORklHWyJ0aW1lb3V0Il0gPSBhcmdzLnRpbWVvdXQK"
-    "ICAgIHRyeToKICAgICAgICB0b2sgPSBfZ2V0X3Rva2VuKCkKICAgICAgICBsb2coZiJbY2F0cGF3XSBhdXRoIOWwsee7qiAodG9r"
-    "ZW5fbGVuPXtsZW4odG9rKX0pIikKICAgIGV4Y2VwdCBFeGNlcHRpb24gYXMgZToKICAgICAgICBsb2coZiJbY2F0cGF3XSDlkK/l"
-    "iqjorablkYrvvJp7ZX0iKQogICAgbG9nKGYiW2NhdHBhd10g5ZCv5Yqo5LitIOKApiBodHRwOi8ve2FyZ3MuaG9zdH06e2FyZ3Mu"
-    "cG9ydH0iKQogICAgbG9nKGYiW2NhdHBhd10g5LiK5ri477yae0NPTkZJR1snYXBpX2Jhc2UnXX0gIG1vZGVsX3R5cGU9e0NPTkZJ"
-    "R1snbW9kZWxfdHlwZSddfSDmmrTpnLLmqKHlnovvvJp7Q09ORklHWydleHBvc2VkX21vZGVscyddIG9yICflhajpg6gnfSIpCiAg"
-    "ICB1dmljb3JuLnJ1bihhcHAsIGhvc3Q9YXJncy5ob3N0LCBwb3J0PWFyZ3MucG9ydCwgbG9nX2xldmVsPSJpbmZvIiwgbGlmZXNw"
-    "YW49Im9uIikKCmlmIF9fbmFtZV9fID09ICJfX21haW5fXyI6CiAgICBtYWluKCkK",
+        "loomy2openai/loomy2openai.py":
+    "IyAtKi0gY29kaW5nOiB1dGYtOCAtKi0KIiIibG9vbXkyb3BlbmFpIOKAlCDmioogTG9vbXnvvIjorq/po54gaU1vZGVsIC8gc3Bh"
+    "cmsteO+8ieWwgeijheaIkOagh+WHhiBPcGVuQUkg5YW85a65IEFQSeOAggoK5a+55aSW77yaCiAgR0VUICAvaGVhbHRoICAgICAg"
+    "ICAgICAgICAgIOaOoua0u++8iOWQq+WHreivgeadpea6kC/mqKHlnovmlbDvvIkKICBHRVQgIC92MS9tb2RlbHMgICAgICAgICAg"
+    "ICAg5qih5Z6L55uu5b2VCiAgUE9TVCAvdjEvY2hhdC9jb21wbGV0aW9ucyAgIOWvueivne+8iFNTRSDmtYHlvI8gKyDpnZ7mtYHl"
+    "vI/vvJvmlK/mjIEgdG9vbHMvdG9vbF9jYWxsc++8iQoK5a+55YaF77yaTG9vbXkg5qGM6Z2i56uv5pivIEVsZWN0cm9uICsg5YaF"
+    "5bWMIG9wZW5jb2Rl44CC5a6D5Lya5oqKIHByb3ZpZGVyIOmFjee9ruazqOWFpei/kOihjOaXtgpvcGVuY29kZSDmnI3liqHvvIjp"
+    "u5jorqQgMTI3LjAuMC4xOjQ0MzHvvInvvIxgR0VUIC9wcm92aWRlcmAg6IO955u05o6l6K+75Yiw77yaCgogICAgcHJvdmlkZXJJ"
+    "RD1pbW9kZWwgIG9wdGlvbnM9e2Jhc2VVUkwsIGFwaUtleSwgdXNlU2Vzc2lvbkF1dGg6dHJ1ZX0KCuaJgOS7peWHreivgeS8mOWF"
+    "iOe6p++8muKRoCDov5DooYzkuK3nmoQgb3BlbmNvZGUgL3Byb3ZpZGVy77yI5pyA5YeG77yM5ZCr5pyA5pawIHRva2Vu77yJCiAg"
+    "ICAgICAgICAgICAgICDikaEg6Kej5p6QIExvb215IOeahCBMb2NhbCBTdG9yYWdlIGxldmVsZGLvvIhsb29teS1hdXRoLXNlc3Np"
+    "b24uc2Vzc2lvbu+8iQogICAgICAgICAgICAgICAg4pGiIOeUqOaIt+aJi+WhqyBiYXNlX3VybCAvIGFwaV9rZXkKCumJtOadg+az"
+    "qOaEj++8iOWunua1i++8ie+8mgogIC9jaGF0L2NvbXBsZXRpb25zICDihpIgIEF1dGhvcml6YXRpb246IEJlYXJlciA8YXBpS2V5"
+    "PgogIC9tb2RlbHMgICAgICAgICAgICDihpIgIHRva2VuOiA8YXBpS2V5PiAgICAgICAgICDihpAg5Lik5Liq56uv54K55LiN5LiA"
+    "5qC377yBCiAgdG9vbF9jaG9pY2UgICAgICAgIOKGkiAg5Y+q6K6k5a2X56ym5LiyIGF1dG8vcmVxdWlyZWTvvJvlr7nosaHlvaLl"
+    "vI/kuI3op6blj5HvvIjpmY3nuqfkuLogcmVxdWlyZWTvvIkKIiIiCmZyb20gX19mdXR1cmVfXyBpbXBvcnQgYW5ub3RhdGlvbnMK"
+    "CmltcG9ydCBqc29uCmltcG9ydCBvcwppbXBvcnQgcmUKaW1wb3J0IHRpbWUKZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCgppbXBv"
+    "cnQgaHR0cHgKZnJvbSBmYXN0YXBpIGltcG9ydCBGYXN0QVBJLCBSZXF1ZXN0CmZyb20gZmFzdGFwaS5yZXNwb25zZXMgaW1wb3J0"
+    "IEpTT05SZXNwb25zZSwgU3RyZWFtaW5nUmVzcG9uc2UKCkNPTkZJRyA9IHsKICAgICJsb2NhbF9hcGlfa2V5IjogIiIsCiAgICAi"
+    "bG9nX3BhdGgiOiBOb25lLAogICAgImV4cG9zZWRfbW9kZWxzIjogW10sCiAgICAicG9ydCI6IDk0MDAsCiAgICAiYmFzZV91cmwi"
+    "OiAiIiwgICAgICAgICAgIyDnlZnnqbo96Ieq5Yqo5o6i5rWLCiAgICAiYXBpX2tleSI6ICIiLCAgICAgICAgICAgIyDnlZnnqbo9"
+    "6Ieq5Yqo5o6i5rWLCiAgICAib3BlbmNvZGVfcG9ydCI6IDQ0MzEsCn0KCkRFRkFVTFRfQkFTRSA9ICJodHRwczovL2xvb215YWQu"
+    "eHVuZmVpLmNuL2FwaS92MSIKIyAxMiDkuKrmqKHlnovvvJvlgI3mlbDmnaXoh6ogTG9vbXkg55WM6Z2i5qCH5rOo77yIeDEyLjAg"
+    "6KGo56S65omjIDEyIOWAjeenr+WIhu+8iQpNT0RFTF9ISU5UUyA9IHsKICAgICJzcGFyay14IjogIlNwYXJrIFgyLjXvvIjpmZDm"
+    "l7blhY3otLnvvIkiLAogICAgInF3ZW4zLjgtZmxhc2giOiAicXdlbiAzLjggZmxhc2jvvIh4MC4477yJIiwKICAgICJHTE0tNS4z"
+    "LUZsYXNoIjogIkdMTSA1LjMgRmxhc2jvvIh4MC4477yJIiwKICAgICJkb3ViYW8tc2VlZC0yLjAtbWluaSI6ICJEb3ViYW8gU2Vl"
+    "ZCAyLjAgbWluae+8iHgwLjjvvIkiLAogICAgInF3ZW4zLjUtZmxhc2giOiAiUXdlbjMuNSBGbGFzaO+8iHgxLjDvvIkiLAogICAg"
+    "ImRlZXBzZWVrLXY0LWZsYXNoLTA3MzEiOiAiRGVlcFNlZWsgVjQgRmxhc2ggMDczMe+8iHgzLjDvvIkiLAogICAgIm1pbW8tdjIu"
+    "NSI6ICJNaU1vIFYyLjXvvIh4My4z77yJIiwKICAgICJNaW5pTWF4LU0zIjogIk1pbmlNYXggTTPvvIh4NC4w77yJIiwKICAgICJL"
+    "aW1pLWsyLjYiOiAiS2ltaSBrMi4277yIeDYuNe+8iSIsCiAgICAicXdlbi0zLjgtbWF4IjogIlF3ZW4gMy44IE1heO+8iHgxMi4w"
+    "77yJIiwKICAgICJkb3ViYW8tc2VlZHJlYW0tNS1saXRlIjogImRvdWJhby1zZWVkcmVhbS01LWxpdGUiLAogICAgInF3ZW4taW1h"
+    "Z2UtMy4wLXBybyI6ICJxd2VuLWltYWdlLTMuMC1wcm8iLAp9CkZSRUVfTU9ERUxTID0geyJzcGFyay14In0KIyDpu5jorqTmmrTp"
+    "nLLlhajpg6ggMTIg5Liq77ybc3BhcmsteCDmjpLlnKjmnIDliY3vvIzkvZzkuLrpu5jorqTpgInkuK3pobnvvIjllK/kuIDlhY3o"
+    "tLnvvIkKREVGQVVMVF9NT0RFTFMgPSBbCiAgICAic3BhcmsteCIsCiAgICAicXdlbjMuOC1mbGFzaCIsCiAgICAiR0xNLTUuMy1G"
+    "bGFzaCIsCiAgICAiZG91YmFvLXNlZWQtMi4wLW1pbmkiLAogICAgInF3ZW4zLjUtZmxhc2giLAogICAgImRlZXBzZWVrLXY0LWZs"
+    "YXNoLTA3MzEiLAogICAgIm1pbW8tdjIuNSIsCiAgICAiTWluaU1heC1NMyIsCiAgICAiS2ltaS1rMi42IiwKICAgICJxd2VuLTMu"
+    "OC1tYXgiLAogICAgImRvdWJhby1zZWVkcmVhbS01LWxpdGUiLAogICAgInF3ZW4taW1hZ2UtMy4wLXBybyIsCl0KCgpkZWYgX2xv"
+    "ZyhsaW5lOiBzdHIpOgogICAgbHAgPSBDT05GSUcuZ2V0KCJsb2dfcGF0aCIpCiAgICBpZiBub3QgbHA6CiAgICAgICAgcmV0dXJu"
+    "CiAgICB0cnk6CiAgICAgICAgd2l0aCBvcGVuKGxwLCAiYSIsIGVuY29kaW5nPSJ1dGYtOCIpIGFzIGY6CiAgICAgICAgICAgIGYu"
+    "d3JpdGUoZiJbe3RpbWUuc3RyZnRpbWUoJyVIOiVNOiVTJyl9XSB7bGluZX1cbiIpCiAgICBleGNlcHQgT1NFcnJvcjoKICAgICAg"
+    "ICBwYXNzCgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0t"
+    "LS0tLS0tLS0tLS0KIyDlh63or4HmjqLmtYsKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0t"
+    "LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCmRlZiBfZnJvbV9vcGVuY29kZSgpIC0+IHR1cGxlW3N0ciwgc3RyLCBsaXN0"
+    "XSB8IE5vbmU6CiAgICAiIiLku47ov5DooYzkuK3nmoQgTG9vbXkgb3BlbmNvZGUg5pyN5Yqh6K+7IGltb2RlbCBwcm92aWRlcu+8"
+    "iGJhc2VVUkwgKyBhcGlLZXkgKyDmqKHlnovooajvvInjgIIiIiIKICAgIHBvcnQgPSBpbnQoQ09ORklHLmdldCgib3BlbmNvZGVf"
+    "cG9ydCIpIG9yIDQ0MzEpCiAgICB0cnk6CiAgICAgICAgd2l0aCBodHRweC5DbGllbnQodGltZW91dD04KSBhcyBjOgogICAgICAg"
+    "ICAgICByID0gYy5nZXQoZiJodHRwOi8vMTI3LjAuMC4xOntwb3J0fS9wcm92aWRlciIpCiAgICAgICAgaWYgci5zdGF0dXNfY29k"
+    "ZSAhPSAyMDA6CiAgICAgICAgICAgIHJldHVybiBOb25lCiAgICAgICAgZCA9IHIuanNvbigpCiAgICBleGNlcHQgRXhjZXB0aW9u"
+    "OiAgIyBub3FhOiBCTEUwMDEKICAgICAgICByZXR1cm4gTm9uZQogICAgZm9yIHAgaW4gKGQuZ2V0KCJhbGwiKSBvciBbXSk6CiAg"
+    "ICAgICAgaWYgbm90IGlzaW5zdGFuY2UocCwgZGljdCk6CiAgICAgICAgICAgIGNvbnRpbnVlCiAgICAgICAgb3B0cyA9IHAuZ2V0"
+    "KCJvcHRpb25zIikgb3Ige30KICAgICAgICBpZiBwLmdldCgiaWQiKSA9PSAiaW1vZGVsIiBvciBvcHRzLmdldCgidXNlU2Vzc2lv"
+    "bkF1dGgiKToKICAgICAgICAgICAgYmFzZSA9IHN0cihvcHRzLmdldCgiYmFzZVVSTCIpIG9yICIiKS5yc3RyaXAoIi8iKQogICAg"
+    "ICAgICAgICBrZXkgPSBzdHIob3B0cy5nZXQoImFwaUtleSIpIG9yICIiKQogICAgICAgICAgICBtb2RlbHMgPSBsaXN0KChwLmdl"
+    "dCgibW9kZWxzIikgb3Ige30pLmtleXMoKSkKICAgICAgICAgICAgaWYgYmFzZSBhbmQga2V5OgogICAgICAgICAgICAgICAgcmV0"
+    "dXJuIGJhc2UsIGtleSwgbW9kZWxzCiAgICByZXR1cm4gTm9uZQoKCmRlZiBfbG9vbXlfcm9vdHMoKSAtPiBsaXN0OgogICAgb3V0"
+    "ID0gW10KICAgIGZvciBlbnYgaW4gKCJBUFBEQVRBIiwgIkxPQ0FMQVBQREFUQSIpOgogICAgICAgIHYgPSBvcy5lbnZpcm9uLmdl"
+    "dChlbnYpCiAgICAgICAgaWYgdjoKICAgICAgICAgICAgb3V0LmFwcGVuZChQYXRoKHYpIC8gImxvb215IikKICAgICAgICAgICAg"
+    "b3V0LmFwcGVuZChQYXRoKHYpIC8gIkxvb215IikKICAgIHJldHVybiBvdXQKCgpkZWYgX2Zyb21fbG9jYWxfc3RvcmFnZSgpIC0+"
+    "IHR1cGxlW3N0ciwgc3RyLCBsaXN0XSB8IE5vbmU6CiAgICAiIiLop6PmnpAgTG9vbXkg55qEIExvY2FsIFN0b3JhZ2UobGV2ZWxk"
+    "Yikg6YeM55qEIGxvb215LWF1dGgtc2Vzc2lvbi5zZXNzaW9u44CCIiIiCiAgICBmb3Igcm9vdCBpbiBfbG9vbXlfcm9vdHMoKToK"
+    "ICAgICAgICBkID0gcm9vdCAvICJMb2NhbCBTdG9yYWdlIiAvICJsZXZlbGRiIgogICAgICAgIGlmIG5vdCBkLmlzX2RpcigpOgog"
+    "ICAgICAgICAgICBjb250aW51ZQogICAgICAgIGZvciBmIGluIHNvcnRlZChkLmdsb2IoIioubG9nIikpICsgc29ydGVkKGQuZ2xv"
+    "YigiKi5sZGIiKSk6CiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIGIgPSBmLnJlYWRfYnl0ZXMoKQogICAgICAgICAg"
+    "ICBleGNlcHQgT1NFcnJvcjoKICAgICAgICAgICAgICAgIGNvbnRpbnVlCiAgICAgICAgICAgIHR4dCA9IGIuZGVjb2RlKCJ1dGYt"
+    "OCIsICJyZXBsYWNlIikKICAgICAgICAgICAgbSA9IHJlLnNlYXJjaChyJyJzZXNzaW9uIlxzKjpccyoiKFswLTlhLXpBLVpfXC1d"
+    "ezgsfSkiJywgdHh0KQogICAgICAgICAgICBpZiBtOgogICAgICAgICAgICAgICAgcmV0dXJuIERFRkFVTFRfQkFTRSwgbS5ncm91"
+    "cCgxKSwgW10KICAgIHJldHVybiBOb25lCgoKZGVmIHJlc29sdmVfY3JlZHMoZm9yY2U6IGJvb2wgPSBGYWxzZSkgLT4gdHVwbGVb"
+    "c3RyLCBzdHIsIGxpc3RdOgogICAgIiIi6L+U5ZueIChiYXNlX3VybCwgYXBpX2tleSwgbW9kZWxzKeOAguS8mOWFiCBDT05GSUcg"
+    "5omL5aGrIOKGkiBvcGVuY29kZSDlrp7ml7Yg4oaSIExvY2FsIFN0b3JhZ2XjgIIiIiIKICAgIGlmIENPTkZJRy5nZXQoImJhc2Vf"
+    "dXJsIikgYW5kIENPTkZJRy5nZXQoImFwaV9rZXkiKToKICAgICAgICByZXR1cm4gQ09ORklHWyJiYXNlX3VybCJdLnJzdHJpcCgi"
+    "LyIpLCBDT05GSUdbImFwaV9rZXkiXSwgW10KICAgIGdvdCA9IF9mcm9tX29wZW5jb2RlKCkKICAgIGlmIGdvdDoKICAgICAgICBi"
+    "YXNlLCBrZXksIG1vZGVscyA9IGdvdAogICAgICAgIF9sb2coZiJbbG9vbXldIOWHreivgeadpeiHqiBvcGVuY29kZSDmnI3liqHv"
+    "vIh7bGVuKG1vZGVscyl9IOS4quaooeWei++8iSIpCiAgICAgICAgcmV0dXJuIGJhc2UsIGtleSwgbW9kZWxzCiAgICBnb3QgPSBf"
+    "ZnJvbV9sb2NhbF9zdG9yYWdlKCkKICAgIGlmIGdvdDoKICAgICAgICBiYXNlLCBrZXksIG1vZGVscyA9IGdvdAogICAgICAgIF9s"
+    "b2coIltsb29teV0g5Yet6K+B5p2l6IeqIExvY2FsIFN0b3JhZ2XvvIhvcGVuY29kZSDmnKrov5DooYzvvIkiKQogICAgICAgIHJl"
+    "dHVybiBiYXNlLCBrZXksIG1vZGVscwogICAgcmFpc2UgUnVudGltZUVycm9yKCLmnKrmib7liLAgTG9vbXkg55m75b2V5Yet6K+B"
+    "77ya6K+35YWI5omT5byAIExvb215IOahjOmdouerr+eZu+W9leS4gOasoSIpCgoKZGVmIHJlYWRfcG9pbnRzKCkgLT4gZGljdDoK"
+    "ICAgICIiIuivuyBMb29teSDnmoTnp6/liIbmkZjopoHnvJPlrZjvvIhMb2NhbCBTdG9yYWdlIOeahCBgbG9vbXktcG9pbnRzLXN1"
+    "bW1hcnlg77yJ44CCCgogICAg5a6e5rWL77ya56ev5YiG5p+l6K+i6LWwIEVsZWN0cm9uIOS4u+i/m+eoiyBJUEPvvIhlbGVjdHJv"
+    "bkFQSS5wb2ludHMucXVlcnlSZWNvcmRzVjLvvInvvIwKICAgIOecn+WuniBIVFRQIOerr+eCueacquWcqOa4suafk+WxguaatOmc"
+    "su+8iGFwcC5hc2FyIOWJjSAxMjBNQiDlhoXmnKrmib7liLDvvIzlgJnpgInot6/lvoTlnYcgNDA077yJ77yMCiAgICDmiYDku6Xk"
+    "u6UgTG9vbXkg6Ieq5bex57yT5a2Y55qE5pGY6KaB5Li65YeG4oCU4oCU5a6D55SxIEFwcCDmr4/mrKHliLfmlrDml7blhpnlhaXj"
+    "gIIKICAgIOWtl+aute+8mmJhbGFuY2XvvIjmgLvkvZnpop3vvIkvIGRhaWx5QmFsYW5jZe+8iOW9k+aXpeS9memine+8iS8gdGVh"
+    "bURhaWx5Ku+8iOWboumYn+aXpemZkOmine+8ieOAggogICAgIiIiCiAgICBpbXBvcnQgcmUgYXMgX3JlCiAgICAjIGxldmVsZGIg"
+    "6YeM44CM6ZSu44CN5LiO44CM5YC844CN5LmL6Ze05piv5LqM6L+b5Yi25o6n5Yi25a2X6IqC77yI5a6e5rWLIFx4YmNceDAxXHgw"
+    "MSAvIExceDAx77yJ77yMCiAgICAjIOS4jeaYr+epuueZve+8jOaJgOS7peS4jeiDveeUqCBccyrvvIzopoHmjInlrZfoioLmlL7l"
+    "rr3lrrnlv43jgIIKICAgIHBhdCA9IF9yZS5jb21waWxlKHJiImxvb215LXBvaW50cy1zdW1tYXJ5LnswLDh9Pyhce1tee31dKlx9"
+    "KSIsIF9yZS5TKQogICAgYmVzdCA9IE5vbmUKICAgIGZvciByb290IGluIF9sb29teV9yb290cygpOgogICAgICAgIGQgPSByb290"
+    "IC8gIkxvY2FsIFN0b3JhZ2UiIC8gImxldmVsZGIiCiAgICAgICAgaWYgbm90IGQuaXNfZGlyKCk6CiAgICAgICAgICAgIGNvbnRp"
+    "bnVlCiAgICAgICAgZm9yIGYgaW4gc29ydGVkKGQuZ2xvYigiKi5sb2ciKSkgKyBzb3J0ZWQoZC5nbG9iKCIqLmxkYiIpKToKICAg"
+    "ICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgcmF3ID0gZi5yZWFkX2J5dGVzKCkKICAgICAgICAgICAgZXhjZXB0IE9TRXJy"
+    "b3I6CiAgICAgICAgICAgICAgICBjb250aW51ZQogICAgICAgICAgICBmb3IgbSBpbiBwYXQuZmluZGl0ZXIocmF3KToKICAgICAg"
+    "ICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgICAgICBvYmogPSBqc29uLmxvYWRzKG0uZ3JvdXAoMSkuZGVjb2RlKCJ1dGYt"
+    "OCIsICJyZXBsYWNlIikpCiAgICAgICAgICAgICAgICBleGNlcHQgRXhjZXB0aW9uOiAgIyBub3FhOiBCTEUwMDEKICAgICAgICAg"
+    "ICAgICAgICAgICBjb250aW51ZQogICAgICAgICAgICAgICAgaWYgImJhbGFuY2UiIG5vdCBpbiBvYmo6CiAgICAgICAgICAgICAg"
+    "ICAgICAgY29udGludWUKICAgICAgICAgICAgICAgIGlmIGJlc3QgaXMgTm9uZSBvciAob2JqLmdldCgidXBkYXRlZEF0Iikgb3Ig"
+    "IiIpID4gKGJlc3QuZ2V0KCJ1cGRhdGVkQXQiKSBvciAiIik6CiAgICAgICAgICAgICAgICAgICAgYmVzdCA9IG9iagogICAgcmV0"
+    "dXJuIGJlc3Qgb3Ige30KCgpkZWYgX2V4cG9zZWQoKSAtPiBsaXN0OgogICAgcmF3ID0gbGlzdChDT05GSUdbImV4cG9zZWRfbW9k"
+    "ZWxzIl0pIGlmIENPTkZJR1siZXhwb3NlZF9tb2RlbHMiXSBlbHNlIGxpc3QoREVGQVVMVF9NT0RFTFMpCiAgICByZXR1cm4gcmF3"
+    "CgoKZGVmIF9jaGVja19sb2NhbF9hdXRoKHJlcTogUmVxdWVzdCkgLT4gYm9vbDoKICAgIGtleSA9IENPTkZJRy5nZXQoImxvY2Fs"
+    "X2FwaV9rZXkiKSBvciAiIgogICAgaWYgbm90IGtleToKICAgICAgICByZXR1cm4gVHJ1ZQogICAgYXV0aCA9IHJlcS5oZWFkZXJz"
+    "LmdldCgiQXV0aG9yaXphdGlvbiIsICIiKQogICAgcmV0dXJuIGF1dGguc3RhcnRzd2l0aCgiQmVhcmVyICIpIGFuZCBhdXRoW2xl"
+    "bigiQmVhcmVyICIpOl0uc3RyaXAoKSA9PSBrZXkKCgpkZWYgX3Rvb2xfcGF5bG9hZCh0b29scywgdG9vbF9jaG9pY2UpIC0+IGRp"
+    "Y3Q6CiAgICAiIiLkuIrmuLjlj6rorqTlrZfnrKbkuLIgdG9vbF9jaG9pY2XvvJvlr7nosaHlvaLlvI/kuI3op6blj5HvvIzpmY3n"
+    "uqfkuLogcmVxdWlyZWTjgIIiIiIKICAgIGlmIG5vdCB0b29sczoKICAgICAgICByZXR1cm4ge30KICAgIHRjID0gdG9vbF9jaG9p"
+    "Y2UKICAgIGlmIGlzaW5zdGFuY2UodGMsIHN0cikgYW5kIHRjLmxvd2VyKCkgPT0gIm5vbmUiOgogICAgICAgIHJldHVybiB7fQog"
+    "ICAgb3V0ID0geyJ0b29scyI6IHRvb2xzfQogICAgaWYgaXNpbnN0YW5jZSh0Yywgc3RyKSBhbmQgdGMubG93ZXIoKSBpbiAoImF1"
+    "dG8iLCAicmVxdWlyZWQiKToKICAgICAgICBvdXRbInRvb2xfY2hvaWNlIl0gPSB0Yy5sb3dlcigpCiAgICBlbGlmIGlzaW5zdGFu"
+    "Y2UodGMsIGRpY3QpOgogICAgICAgIG91dFsidG9vbF9jaG9pY2UiXSA9ICJyZXF1aXJlZCIKICAgIHJldHVybiBvdXQKCgphcHAg"
+    "PSBGYXN0QVBJKHRpdGxlPSJMb29teeKGkk9wZW5BSSIpCgoKQGFwcC5nZXQoIi9oZWFsdGgiKQphc3luYyBkZWYgaGVhbHRoKCk6"
+    "CiAgICBvaywgaW5mbywgbW9kZWxzID0gVHJ1ZSwge30sIFtdCiAgICB0cnk6CiAgICAgICAgYmFzZSwga2V5LCBtb2RlbHMgPSBy"
+    "ZXNvbHZlX2NyZWRzKCkKICAgICAgICBpbmZvID0geyJiYXNlX3VybCI6IGJhc2UsICJrZXlfbGVuIjogbGVuKGtleSl9CiAgICBl"
+    "eGNlcHQgRXhjZXB0aW9uIGFzIGU6ICAjIG5vcWE6IEJMRTAwMQogICAgICAgIG9rLCBpbmZvID0gRmFsc2UsIHsiZXJyb3IiOiBz"
+    "dHIoZSlbOjIwMF19CiAgICByZXR1cm4geyJvayI6IG9rLCAic2VydmljZSI6ICJsb29teTJvcGVuYWkiLCAiY29uZmlndXJlZCI6"
+    "IG9rLAogICAgICAgICAgICAibW9kZWxzIjogX2V4cG9zZWQoKSwgImNyZWRlbnRpYWwiOiBpbmZvfQoKCkBhcHAuZ2V0KCIvdjEv"
+    "bW9kZWxzIikKYXN5bmMgZGVmIG1vZGVscyhyZXE6IFJlcXVlc3QpOgogICAgaWYgbm90IF9jaGVja19sb2NhbF9hdXRoKHJlcSk6"
+    "CiAgICAgICAgcmV0dXJuIEpTT05SZXNwb25zZSh7ImVycm9yIjogeyJtZXNzYWdlIjogImludmFsaWQgQVBJIGtleSIsICJ0eXBl"
+    "IjogImF1dGhfZXJyb3IifX0sIHN0YXR1c19jb2RlPTQwMSkKICAgIHJldHVybiB7Im9iamVjdCI6ICJsaXN0IiwKICAgICAgICAg"
+    "ICAgImRhdGEiOiBbeyJpZCI6IG0sICJvYmplY3QiOiAibW9kZWwiLCAiY3JlYXRlZCI6IDAsICJvd25lZF9ieSI6ICJsb29teSJ9"
+    "IGZvciBtIGluIF9leHBvc2VkKCldfQoKCkBhcHAuZ2V0KCIvdjEvcG9pbnRzIikKYXN5bmMgZGVmIHBvaW50cygpOgogICAgIiIi"
+    "56ev5YiG5L2Z6aKd77yI6K+7IExvb215IOacrOWcsOe8k+WtmOaRmOimge+8ieOAgiIiIgogICAgdHJ5OgogICAgICAgIGQgPSBy"
+    "ZWFkX3BvaW50cygpCiAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGU6ICAjIG5vcWE6IEJMRTAwMQogICAgICAgIHJldHVybiBKU09O"
+    "UmVzcG9uc2UoeyJvayI6IEZhbHNlLCAiZXJyb3IiOiBzdHIoZSl9LCBzdGF0dXNfY29kZT01MDApCiAgICBpZiBub3QgZDoKICAg"
+    "ICAgICByZXR1cm4gSlNPTlJlc3BvbnNlKHsib2siOiBGYWxzZSwKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAiZXJyb3Ii"
+    "OiAi5pyq5om+5Yiw56ev5YiG57yT5a2Y77yI6K+35omT5byAIExvb215IOahjOmdouerr+S4gOasoeiuqeWug+WIt+aWsO+8iSJ9"
+    "LAogICAgICAgICAgICAgICAgICAgICAgICAgICAgc3RhdHVzX2NvZGU9NDA0KQogICAgcmV0dXJuIHsib2siOiBUcnVlLCAiZGF0"
+    "YSI6IGQsCiAgICAgICAgICAgICJub3RlIjogIuivu+iHqiBMb29teSDmnKzlnLDnvJPlrZjvvJvlrp7ml7bmjqXlj6PotbAgRWxl"
+    "Y3Ryb24g5Li76L+b56iLIElQQ++8jOacquWFrOW8gCJ9CgoKQGFwcC5wb3N0KCIvdjEvY2hhdC9jb21wbGV0aW9ucyIpCmFzeW5j"
+    "IGRlZiBjaGF0X2NvbXBsZXRpb25zKHJlcTogUmVxdWVzdCk6CiAgICBpZiBub3QgX2NoZWNrX2xvY2FsX2F1dGgocmVxKToKICAg"
+    "ICAgICByZXR1cm4gSlNPTlJlc3BvbnNlKHsiZXJyb3IiOiB7Im1lc3NhZ2UiOiAiaW52YWxpZCBBUEkga2V5IiwgInR5cGUiOiAi"
+    "YXV0aF9lcnJvciJ9fSwgc3RhdHVzX2NvZGU9NDAxKQogICAgdHJ5OgogICAgICAgIGJvZHkgPSBqc29uLmxvYWRzKGF3YWl0IHJl"
+    "cS5ib2R5KCkgb3IgYiJ7fSIpCiAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgIHJldHVybiBKU09OUmVzcG9uc2UoeyJlcnJv"
+    "ciI6IHsibWVzc2FnZSI6ICLor7fmsYLkvZPkuI3mmK/lkIjms5UgSlNPTiIsICJ0eXBlIjogImludmFsaWRfcmVxdWVzdCJ9fSwK"
+    "ICAgICAgICAgICAgICAgICAgICAgICAgICAgIHN0YXR1c19jb2RlPTQwMCkKICAgIG1zZ3MgPSBib2R5LmdldCgibWVzc2FnZXMi"
+    "KSBvciBbXQogICAgaWYgbm90IG1zZ3M6CiAgICAgICAgcmV0dXJuIEpTT05SZXNwb25zZSh7ImVycm9yIjogeyJtZXNzYWdlIjog"
+    "Im1lc3NhZ2VzIOS4uuepuiIsICJ0eXBlIjogImludmFsaWRfcmVxdWVzdCJ9fSwgc3RhdHVzX2NvZGU9NDAwKQogICAgbW9kZWwg"
+    "PSBib2R5LmdldCgibW9kZWwiKSBvciAoX2V4cG9zZWQoKVswXSkKICAgIGlmIG1vZGVsIG5vdCBpbiBNT0RFTF9ISU5UUyBhbmQg"
+    "bm90IENPTkZJRy5nZXQoImFsbG93X2FueV9tb2RlbCIpOgogICAgICAgICMg5pyq5Zyo6KGo5YaF5Lmf5pS+6KGM77yI5LiK5ri4"
+    "5Lya6Ieq5bex5oql6ZSZ77yJ77yM5L2G6K6w5b2V5LiA5p2hCiAgICAgICAgX2xvZyhmIltsb29teV0g5pyq5Zyo5bey55+l6KGo"
+    "5YaF55qE5qih5Z6L77yae21vZGVsfSIpCiAgICBtYXhfdG9rZW5zID0gaW50KGJvZHkuZ2V0KCJtYXhfdG9rZW5zIikgb3IgNDA5"
+    "NikKICAgIHN0cmVhbSA9IGJvb2woYm9keS5nZXQoInN0cmVhbSIsIEZhbHNlKSkKICAgIHRvb2xzID0gYm9keS5nZXQoInRvb2xz"
+    "Iikgb3IgTm9uZQogICAgdG9vbF9jaG9pY2UgPSBib2R5LmdldCgidG9vbF9jaG9pY2UiKQoKICAgIHRyeToKICAgICAgICBiYXNl"
+    "LCBrZXksIF8gPSByZXNvbHZlX2NyZWRzKCkKICAgIGV4Y2VwdCBSdW50aW1lRXJyb3IgYXMgZToKICAgICAgICByZXR1cm4gSlNP"
+    "TlJlc3BvbnNlKHsiZXJyb3IiOiB7Im1lc3NhZ2UiOiBzdHIoZSksICJ0eXBlIjogImNvbmZpZ19lcnJvciJ9fSwgc3RhdHVzX2Nv"
+    "ZGU9NTAzKQoKICAgIHVybCA9IGJhc2UgKyAiL2NoYXQvY29tcGxldGlvbnMiCiAgICBwYXlsb2FkID0geyJtb2RlbCI6IG1vZGVs"
+    "LCAibWVzc2FnZXMiOiBtc2dzLCAibWF4X3Rva2VucyI6IG1heF90b2tlbnMsICJzdHJlYW0iOiBzdHJlYW19CiAgICBwYXlsb2Fk"
+    "LnVwZGF0ZShfdG9vbF9wYXlsb2FkKHRvb2xzLCB0b29sX2Nob2ljZSkpCiAgICBoZWFkZXJzID0geyJBdXRob3JpemF0aW9uIjog"
+    "IkJlYXJlciAiICsga2V5LCAiQ29udGVudC1UeXBlIjogImFwcGxpY2F0aW9uL2pzb24ifQoKICAgIGlmIG5vdCBzdHJlYW06CiAg"
+    "ICAgICAgdHJ5OgogICAgICAgICAgICB3aXRoIGh0dHB4LkNsaWVudCh0aW1lb3V0PTkwMCkgYXMgYzoKICAgICAgICAgICAgICAg"
+    "IHIgPSBjLnBvc3QodXJsLCBqc29uPXBheWxvYWQsIGhlYWRlcnM9aGVhZGVycykKICAgICAgICAgICAgcmV0dXJuIEpTT05SZXNw"
+    "b25zZShjb250ZW50PXIuanNvbigpLCBzdGF0dXNfY29kZT1yLnN0YXR1c19jb2RlKQogICAgICAgIGV4Y2VwdCBodHRweC5IVFRQ"
+    "RXJyb3IgYXMgZToKICAgICAgICAgICAgcmV0dXJuIEpTT05SZXNwb25zZSh7ImVycm9yIjogeyJtZXNzYWdlIjogZiJ1cHN0cmVh"
+    "bSBlcnJvcjoge2V9IiwgInR5cGUiOiAidXBzdHJlYW1fZXJyb3IifX0sCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg"
+    "c3RhdHVzX2NvZGU9NTAyKQoKICAgIGRlZiBnZW4oKToKICAgICAgICB0cnk6CiAgICAgICAgICAgIHdpdGggaHR0cHguQ2xpZW50"
+    "KHRpbWVvdXQ9OTAwKSBhcyBjOgogICAgICAgICAgICAgICAgd2l0aCBjLnN0cmVhbSgiUE9TVCIsIHVybCwganNvbj1wYXlsb2Fk"
+    "LCBoZWFkZXJzPWhlYWRlcnMpIGFzIHI6CiAgICAgICAgICAgICAgICAgICAgaWYgci5zdGF0dXNfY29kZSAhPSAyMDA6CiAgICAg"
+    "ICAgICAgICAgICAgICAgICAgIHlpZWxkICgiZGF0YTogIiArIGpzb24uZHVtcHMoCiAgICAgICAgICAgICAgICAgICAgICAgICAg"
+    "ICB7ImVycm9yIjogeyJtZXNzYWdlIjogci5yZWFkKCkuZGVjb2RlKCd1dGYtOCcsICdyZXBsYWNlJylbOjUwMF0sCiAgICAgICAg"
+    "ICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICJ0eXBlIjogInVwc3RyZWFtX2Vycm9yIn19KSArICJcblxuIikuZW5jb2Rl"
+    "KCkKICAgICAgICAgICAgICAgICAgICAgICAgeWllbGQgYiJkYXRhOiBbRE9ORV1cblxuIgogICAgICAgICAgICAgICAgICAgICAg"
+    "ICByZXR1cm4KICAgICAgICAgICAgICAgICAgICBmb3IgY2h1bmsgaW4gci5pdGVyX2J5dGVzKCk6CiAgICAgICAgICAgICAgICAg"
+    "ICAgICAgIGlmIGNodW5rOgogICAgICAgICAgICAgICAgICAgICAgICAgICAgeWllbGQgY2h1bmsKICAgICAgICBleGNlcHQgaHR0"
+    "cHguSFRUUEVycm9yIGFzIGU6CiAgICAgICAgICAgIHlpZWxkICgiZGF0YTogIiArIGpzb24uZHVtcHMoCiAgICAgICAgICAgICAg"
+    "ICB7ImVycm9yIjogeyJtZXNzYWdlIjogZiJ1cHN0cmVhbSBlcnJvcjoge2V9IiwgInR5cGUiOiAidXBzdHJlYW1fZXJyb3IifX0p"
+    "ICsgIlxuXG4iKS5lbmNvZGUoKQogICAgICAgIHlpZWxkIGIiZGF0YTogW0RPTkVdXG5cbiIKCiAgICByZXR1cm4gU3RyZWFtaW5n"
+    "UmVzcG9uc2UoZ2VuKCksIG1lZGlhX3R5cGU9InRleHQvZXZlbnQtc3RyZWFtIikKCgppZiBfX25hbWVfXyA9PSAiX19tYWluX18i"
+    "OgogICAgaW1wb3J0IHV2aWNvcm4KICAgIHV2aWNvcm4ucnVuKGFwcCwgaG9zdD0iMTI3LjAuMC4xIiwgcG9ydD1pbnQoQ09ORklH"
+    "WyJwb3J0Il0pLCBsb2dfbGV2ZWw9ImluZm8iKQo=",
 
 }
 
@@ -2431,14 +2438,14 @@ def _fmt_speed(sp: dict) -> str:
 
 def refresh_models_startup(s: dict, log=print, local_bases: dict | None = None):
     """每次启动后台刷新各通道模型存活（daemon 线程调用，不阻塞）。
-    cb 直连上游逐个探测；rc 取 catalog 即最新；mc/ca/cp 仅在本地服务已起时经本地探测。
+    cb 直连上游逐个探测；rc 取 catalog 即最新；mc/ca/lo 仅在本地服务已起时经本地探测。
     结果写入 settings[{key}_verified]={ts, alive, checked, dead}，dialog 据此标注。
     mc 额外探测工具调用能力（慢，带 TTL 缓存），写入 {key}_verified["tools"]。"""
     local_bases = local_bases or {}
-    names = {"cb": "WorkBuddy", "mc": "MonkeyCode", "ca": "华为云", "rc": "小浣熊", "cp": "CatPaw"}
+    names = {"cb": "WorkBuddy", "mc": "MonkeyCode", "ca": "华为云", "rc": "小浣熊", "lo": "Loomy"}
     builtin = {"cb": list(CB_MODEL_CANDIDATES), "mc": list(MC_MODEL_CANDIDATES),
                "ca": list(CA_MODEL_CANDIDATES), "rc": list(RACOON_MODEL_CANDIDATES),
-               "cp": list(CP_MODEL_CANDIDATES)}
+               "lo": list(LO_MODEL_CANDIDATES)}
 
     def _save(key: str, alive: list, checked: list, dead: list | None = None, extra: dict | None = None):
         prev = s.get(f"{key}_verified") or {}
@@ -2482,8 +2489,8 @@ def refresh_models_startup(s: dict, log=print, local_bases: dict | None = None):
     except Exception as e:  # noqa: BLE001
         log(f"[models] 小浣熊刷新失败：{e}")
 
-    # mc/ca/cp：仅服务已起时经本地探测
-    for key in ("mc", "ca", "cp"):
+    # mc/ca/lo：仅服务已起时经本地探测
+    for key in ("mc", "ca", "lo"):
         try:
             base = local_bases.get(key)
             if not base:
@@ -2787,7 +2794,7 @@ def resolve_install_input(path: str, kind: str) -> str:
         return ""
     exe_names = {"wb": ("WorkBuddyAI.exe",), "mc": ("monkeycode-desktop.exe",),
                  "rc": ("商汤小浣熊.exe", "raccoon-ai.exe"),
-                 "cp": ("CatPaw.exe",)}.get(kind, ("codearts-agent.exe",))
+                 "lo": ("Loomy.exe",)}.get(kind, ("codearts-agent.exe",))
     if p.lower().endswith(".exe"):
         return p
     if Path(p).is_dir():
@@ -2807,10 +2814,10 @@ def find_install(kind: str) -> str:
     """自动搜索本机安装位置：Program Files 系列 + 注册表卸载项。kind: 'wb' | 'mc' | 'ca'"""
     exe_names = {"wb": ("WorkBuddyAI.exe",), "mc": ("monkeycode-desktop.exe",),
                  "rc": ("商汤小浣熊.exe", "raccoon-ai.exe"),
-                 "cp": ("CatPaw.exe",)}.get(kind, ("codearts-agent.exe",))
+                 "lo": ("Loomy.exe",)}.get(kind, ("codearts-agent.exe",))
     hints = {"wb": ("workbuddy", "codebuddy"), "mc": ("monkeycode",),
              "rc": ("raccoon", "xiaohuanxiong", "小浣熊"),
-             "cp": ("catpaw",)}.get(kind, ("codearts",))
+             "lo": ("loomy",)}.get(kind, ("codearts",))
     dirs_cand: list[str] = []
     bases = [
         os.environ.get("ProgramFiles", r"C:\Program Files"),
@@ -2963,10 +2970,10 @@ def import_raccoon(log=print):
     return mod
 
 
-def import_catpaw(log=print):
-    sys.path.insert(0, str(runtime_dir() / "catpaw2openai"))
-    mod = importlib.import_module("catpaw2openai")
-    log("[cp] catpaw2openai 核心已加载")
+def import_loomy(log=print):
+    sys.path.insert(0, str(runtime_dir() / "loomy2openai"))
+    mod = importlib.import_module("loomy2openai")
+    log("[lo] loomy2openai 核心已加载")
     return mod
 
 
@@ -3090,8 +3097,14 @@ RACOON_MODEL_CANDIDATES = [
     "sn-sensenova-6-8-flash-lite", "sn-glm-5-3", "sn-glm-5-3-flash",
     "sn-kimi-k3", "sn-deepseek-v4-pro",
 ]
-# CatPaw 线上模型名（上游 modelType 77 = LongCat-2.0；无 catalog 接口，以此为准）
-CP_MODEL_CANDIDATES = ["LongCat-2.0"]
+# Loomy(讯飞 iModel) 线上模型；spark-x 唯一免费，其余按倍率扣积分
+LO_MODEL_CANDIDATES = [
+    "spark-x", "qwen3.8-flash", "GLM-5.3-Flash", "doubao-seed-2.0-mini",
+    "qwen3.5-flash", "deepseek-v4-flash-0731", "mimo-v2.5", "MiniMax-M3",
+    "Kimi-k2.6", "qwen-3.8-max", "doubao-seedream-5-lite", "qwen-image-3.0-pro",
+]
+# spark-x（Spark X2.5）是唯一免费模型；其余名字里的 x0.8/x3.0/x12.0 是积分倍率
+LO_DEFAULT_MODELS = list(LO_MODEL_CANDIDATES)   # 默认暴露全部 12 个；spark-x 在首位（唯一免费）
 
 
 # ---------------------------------------------------------------------------
@@ -3100,17 +3113,17 @@ CP_MODEL_CANDIDATES = ["LongCat-2.0"]
 
 def load_settings() -> dict:
     p = data_dir() / "settings.json"
-    d = {"cb_port": 8787, "cb_api_key": "", "cb_desensitize": False, "cb_filelog": True,
+    d = {"cb_port": 8787, "cb_api_key": "", "cb_desensitize": False,
          "cb_models": [],
          "mc_port": 9000, "mc_api_key": "", "mc_models": [],
          "mc_pool_enabled": False, "mc_pool": [],
          "ca_port": 9100, "ca_api_key": "", "ca_models": [], "ca_path": "",
          "ca_last_claim": "",
          "rc_port": 9200, "rc_models": [], "rc_path": "", "rc_auth_dir": "",
-         "cp_port": 9300, "cp_models": [], "cp_path": "",
+         "lo_port": 9400, "lo_models": [], "lo_path": "",
          "allow_lan": False, "autostart": False,
          "hermes_sync_cb": True, "hermes_sync_mc": True, "hermes_sync_ca": True,
-         "hermes_sync_rc": True, "hermes_sync_cp": True}
+         "hermes_sync_rc": True, "hermes_sync_lo": True}
     try:
         d.update(json.loads(p.read_text(encoding="utf-8")))
     except (OSError, ValueError):
@@ -3144,18 +3157,31 @@ def run_gui(smoke: bool = False):
                 "mc": ProxyService("mc", "MonkeyCode→OpenAI"),
                 "ca": ProxyService("ca", "CodeArts→OpenAI"),
                 "rc": ProxyService("rc", "Raccoon→OpenAI"),
-                "cp": ProxyService("cp", "CatPaw→OpenAI")}
+                "lo": ProxyService("lo", "Loomy→OpenAI")}
 
     # ---------------- 日志 ----------------
     logfile = logs_dir() / "gui.log"
     logfile.parent.mkdir(parents=True, exist_ok=True)
 
+    _logf = {"fh": None, "n": 0}
+
     def _filelog(line: str):
+        """常开句柄 + 每 100 行才 flush/查大小。
+        原来每行都 open+stat+close，日志量大时是主要开销之一。"""
         try:
-            if logfile.exists() and logfile.stat().st_size > 2_000_000:
-                logfile.write_text("", encoding="utf-8")
-            with open(logfile, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
+            st = _logf
+            if st["fh"] is None or getattr(st["fh"], "closed", False):
+                if logfile.exists() and logfile.stat().st_size > 2_000_000:
+                    logfile.write_text("", encoding="utf-8")
+                st["fh"] = open(logfile, "a", encoding="utf-8")
+                st["n"] = 0
+            st["fh"].write(line + "\n")
+            st["n"] += 1
+            if st["n"] % 100 == 0:
+                st["fh"].flush()
+                if logfile.stat().st_size > 2_000_000:
+                    st["fh"].close()
+                    st["fh"] = None
         except OSError:
             pass
 
@@ -3204,10 +3230,10 @@ def run_gui(smoke: bool = False):
         style.theme_use("vista")
     except Exception:
         pass
-    base_font = ("Microsoft YaHei UI", 8)
+    base_font = ("Microsoft YaHei UI", 7)   # 主界面字号：比默认再小一号，腾出垂直空间给运行日志
     root.option_add("*Font", base_font)
     style.configure(".", font=base_font)
-    style.configure("TLabelframe.Label", font=("Microsoft YaHei UI", 8, "bold"))
+    style.configure("TLabelframe.Label", font=("Microsoft YaHei UI", 7, "bold"))
 
     wl = int(860 * scale)  # 说明文字换行宽度（随 DPI 缩放）
 
@@ -3220,8 +3246,8 @@ def run_gui(smoke: bool = False):
     # ---------------- 顶部 ----------------
     top = ttk.Frame(root, padding=(10, 4, 10, 2))
     top.pack(fill="x")
-    ttk.Label(top, text=f"🚀 {APP_NAME}", font=("Microsoft YaHei UI", 11, "bold")).pack(side="left")
-    global_status = ttk.Label(top, text="●", foreground="#999", font=("Microsoft YaHei UI", 11, "bold"))
+    ttk.Label(top, text=f"🚀 {APP_NAME}", font=("Microsoft YaHei UI", 10, "bold")).pack(side="left")
+    global_status = ttk.Label(top, text="●", foreground="#999", font=("Microsoft YaHei UI", 10, "bold"))
     global_status.pack(side="right")
     ttk.Button(top, text="检测本地环境", command=lambda: threading.Thread(target=detect_env, daemon=True).start()).pack(side="right", padx=4)
     ttk.Button(top, text="■ 全部停止", command=lambda: threading.Thread(target=stop_all, daemon=True).start()).pack(side="right", padx=4)
@@ -3240,6 +3266,8 @@ def run_gui(smoke: bool = False):
     cbf.pack(fill="x", padx=10, pady=(3, 2))
     cb_info = ttk.Label(cbf, text="凭据检测中…", foreground="#555", wraplength=wl, justify="left")
     cb_info.pack(fill="x")
+    cb_cred = ttk.Label(cbf, text="凭证状态检测中…", foreground="#555", wraplength=wl, justify="left")
+    cb_cred.pack(fill="x")
 
     cb_path_row = ttk.Frame(cbf)
     cb_path_row.pack(fill="x", pady=(2, 0))
@@ -3263,8 +3291,8 @@ def run_gui(smoke: bool = False):
     cb_key.pack(side="left", padx=(4, 12))
     cb_desens = tk.BooleanVar(value=settings.get("cb_desensitize", False))
     ttk.Checkbutton(cb_row, text="脱敏(防审核误拦)", variable=cb_desens).pack(side="left")
-    cb_filelog = tk.BooleanVar(value=settings.get("cb_filelog", True))
-    ttk.Checkbutton(cb_row, text="请求日志(文件)", variable=cb_filelog).pack(side="left", padx=(10, 0))
+    # 「请求日志(文件)」已移除：cb 上游日志量极大（实测单个日志文件涨到 500MB+），
+    # 且写盘会拖慢界面，故不再提供该开关，cb 通道始终不写文件日志。
 
     cb_row2 = ttk.Frame(cbf)
     cb_row2.pack(fill="x", pady=(2, 0))
@@ -3287,6 +3315,8 @@ def run_gui(smoke: bool = False):
     mcf.pack(fill="x", padx=10, pady=1)
     mc_info = ttk.Label(mcf, text="上游检测中…", foreground="#555", wraplength=wl, justify="left")
     mc_info.pack(fill="x")
+    mc_cred = ttk.Label(mcf, text="凭证状态检测中…", foreground="#555", wraplength=wl, justify="left")
+    mc_cred.pack(fill="x")
     mc_quota = ttk.Label(mcf, text="额度跟踪：等待服务启动…", foreground="#555", wraplength=wl, justify="left")
     mc_quota.pack(fill="x")
 
@@ -3339,6 +3369,8 @@ def run_gui(smoke: bool = False):
     ca_info = ttk.Label(caf, text="每日 10M token（3 个免费模型共用）· 首次点“授权”在浏览器登录一次，此后自动续期",
                         foreground="#555", wraplength=wl, justify="left")
     ca_info.pack(fill="x")
+    ca_cred = ttk.Label(caf, text="凭证状态检测中…", foreground="#555", wraplength=wl, justify="left")
+    ca_cred.pack(fill="x")
     ca_quota = ttk.Label(caf, text="额度跟踪：等待服务启动…", foreground="#555", wraplength=wl, justify="left")
     ca_quota.pack(fill="x")
 
@@ -3387,6 +3419,8 @@ def run_gui(smoke: bool = False):
     rc_info = ttk.Label(rcf, text="上游 https://xiaohuanxiong.com/api/web/llm/v2 · 8 个模型 · sn-sensenova-6-8-flash-lite 免费 · token 从桌面端 auth.json 读取，桌面端登录后网关可直接调用",
                         foreground="#555", wraplength=wl, justify="left")
     rc_info.pack(fill="x")
+    rc_cred = ttk.Label(rcf, text="凭证状态检测中…", foreground="#555", wraplength=wl, justify="left")
+    rc_cred.pack(fill="x")
 
     rc_path_row = ttk.Frame(rcf)
     rc_path_row.pack(fill="x", pady=(2, 0))
@@ -3426,45 +3460,49 @@ def run_gui(smoke: bool = False):
     rc_models_hint = tk.StringVar(value="")
     ttk.Label(rc_row2, textvariable=rc_models_hint, foreground="#888").pack(side="left", padx=10)
 
-    # ---------------- CatPaw 面板 ----------------
-    cpf = ttk.LabelFrame(root, text=" ⑤ CatPaw（美团）  →  OpenAI 兼容 API ", padding=4)
-    cpf.pack(fill="x", padx=10, pady=1)
-    cp_info = ttk.Label(cpf, text="上游 https://ai.catpaw.meituan.com · 模型 LongCat-2.0（model_type 77）· token 从桌面端 auth.json 读取，桌面端登录后网关可直接调用",
+    # ---------------- Loomy 面板 ----------------
+    lof = ttk.LabelFrame(root, text=" ⑤ Loomy（讯飞 iModel）  →  OpenAI 兼容 API ", padding=4)
+    lof.pack(fill="x", padx=10, pady=1)
+    lo_info = ttk.Label(lof, text="上游 https://loomyad.xunfei.cn/api/v1 · 12 个模型（spark-x 免费，其余按倍率扣积分）· 凭证自动从 Loomy 桌面端/内嵌 opencode 读取",
                         foreground="#555", wraplength=wl, justify="left")
-    cp_info.pack(fill="x")
+    lo_info.pack(fill="x")
+    lo_cred = ttk.Label(lof, text="凭证状态检测中…", foreground="#555", wraplength=wl, justify="left")
+    lo_cred.pack(fill="x")
+    lo_quota = ttk.Label(lof, text="积分：等待服务启动…", foreground="#555", wraplength=wl, justify="left")
+    lo_quota.pack(fill="x")
 
-    cp_path_row = ttk.Frame(cpf)
-    cp_path_row.pack(fill="x", pady=(2, 0))
-    ttk.Label(cp_path_row, text="程序位置").pack(side="left")
-    cp_path = ttk.Entry(cp_path_row)
-    cp_path.pack(side="left", fill="x", expand=True, padx=(6, 4))
-    if settings.get("cp_path"):
-        cp_path.insert(0, settings["cp_path"])
-    ttk.Button(cp_path_row, text="浏览…", width=6, command=lambda: browse_install("cp")).pack(side="left")
-    ttk.Button(cp_path_row, text="启动程序", width=8, command=lambda: launch_program("cp")).pack(side="left", padx=2)
+    lo_path_row = ttk.Frame(lof)
+    lo_path_row.pack(fill="x", pady=(2, 0))
+    ttk.Label(lo_path_row, text="程序位置").pack(side="left")
+    lo_path = ttk.Entry(lo_path_row)
+    lo_path.pack(side="left", fill="x", expand=True, padx=(6, 4))
+    if settings.get("lo_path"):
+        lo_path.insert(0, settings["lo_path"])
+    ttk.Button(lo_path_row, text="浏览…", width=6, command=lambda: browse_install("lo")).pack(side="left")
+    ttk.Button(lo_path_row, text="启动程序", width=8, command=lambda: launch_program("lo")).pack(side="left", padx=2)
 
-    cp_row = ttk.Frame(cpf)
-    cp_row.pack(fill="x", pady=(2, 0))
-    ttk.Label(cp_row, text="端口").pack(side="left")
-    cp_port = ttk.Entry(cp_row, width=7)
-    cp_port.insert(0, str(settings.get("cp_port", 9300)))
-    cp_port.pack(side="left", padx=(4, 12))
+    lo_row = ttk.Frame(lof)
+    lo_row.pack(fill="x", pady=(2, 0))
+    ttk.Label(lo_row, text="端口").pack(side="left")
+    lo_port = ttk.Entry(lo_row, width=7)
+    lo_port.insert(0, str(settings.get("lo_port", 9400)))
+    lo_port.pack(side="left", padx=(4, 12))
 
-    cp_row2 = ttk.Frame(cpf)
-    cp_row2.pack(fill="x", pady=(2, 0))
-    cp_led = make_led(cp_row2)
-    cp_led.pack(side="left")
-    cp_status = ttk.Label(cp_row2, text="未启动", width=26)
-    cp_status.pack(side="left", padx=(4, 8))
-    ttk.Button(cp_row2, text="启动", width=7, command=lambda: threading.Thread(target=start_cp, daemon=True).start()).pack(side="left", padx=2)
-    ttk.Button(cp_row2, text="停止", width=7, command=lambda: threading.Thread(target=lambda: stop_svc("cp"), daemon=True).start()).pack(side="left", padx=2)
-    ttk.Button(cp_row2, text="测试", width=7, command=lambda: threading.Thread(target=test_cp, daemon=True).start()).pack(side="left", padx=2)
-    cp_url = tk.StringVar(value="http://127.0.0.1:9300/v1")
-    ttk.Label(cp_row2, textvariable=cp_url, foreground="#0a58ca").pack(side="left", padx=(10, 4))
-    ttk.Button(cp_row2, text="复制", width=4, command=lambda: copy_text(cp_url.get())).pack(side="left", padx=2)
-    ttk.Button(cp_row2, text="模型", width=5, command=lambda: models_dialog("cp")).pack(side="left", padx=2)
-    cp_models_hint = tk.StringVar(value="")
-    ttk.Label(cp_row2, textvariable=cp_models_hint, foreground="#888").pack(side="left", padx=10)
+    lo_row2 = ttk.Frame(lof)
+    lo_row2.pack(fill="x", pady=(2, 0))
+    lo_led = make_led(lo_row2)
+    lo_led.pack(side="left")
+    lo_status = ttk.Label(lo_row2, text="未启动", width=26)
+    lo_status.pack(side="left", padx=(4, 8))
+    ttk.Button(lo_row2, text="启动", width=7, command=lambda: threading.Thread(target=start_lo, daemon=True).start()).pack(side="left", padx=2)
+    ttk.Button(lo_row2, text="停止", width=7, command=lambda: threading.Thread(target=lambda: stop_svc("lo"), daemon=True).start()).pack(side="left", padx=2)
+    ttk.Button(lo_row2, text="测试", width=7, command=lambda: threading.Thread(target=test_lo, daemon=True).start()).pack(side="left", padx=2)
+    lo_url = tk.StringVar(value="http://127.0.0.1:9400/v1")
+    ttk.Label(lo_row2, textvariable=lo_url, foreground="#0a58ca").pack(side="left", padx=(10, 4))
+    ttk.Button(lo_row2, text="复制", width=4, command=lambda: copy_text(lo_url.get())).pack(side="left", padx=2)
+    ttk.Button(lo_row2, text="模型", width=5, command=lambda: models_dialog("lo")).pack(side="left", padx=2)
+    lo_models_hint = tk.StringVar(value="")
+    ttk.Label(lo_row2, textvariable=lo_models_hint, foreground="#888").pack(side="left", padx=10)
 
     # ---------------- Hermes Agent 集成面板 ----------------
     hrf = ttk.LabelFrame(root, text=" ⑥ Hermes Agent 集成 ", padding=4)
@@ -3479,12 +3517,12 @@ def run_gui(smoke: bool = False):
     hr_sync_mc = tk.BooleanVar(value=settings.get("hermes_sync_mc", True))
     hr_sync_ca = tk.BooleanVar(value=settings.get("hermes_sync_ca", True))
     hr_sync_rc = tk.BooleanVar(value=settings.get("hermes_sync_rc", True))
-    hr_sync_cp = tk.BooleanVar(value=settings.get("hermes_sync_cp", True))
+    hr_sync_lo = tk.BooleanVar(value=settings.get("hermes_sync_lo", True))
     ttk.Checkbutton(hr_checks, text="WorkBuddy", variable=hr_sync_cb).pack(side="left", padx=(0, 8))
     ttk.Checkbutton(hr_checks, text="MonkeyCode", variable=hr_sync_mc).pack(side="left", padx=(0, 8))
     ttk.Checkbutton(hr_checks, text="华为云", variable=hr_sync_ca).pack(side="left", padx=(0, 8))
     ttk.Checkbutton(hr_checks, text="小浣熊", variable=hr_sync_rc).pack(side="left", padx=(0, 8))
-    ttk.Checkbutton(hr_checks, text="CatPaw", variable=hr_sync_cp).pack(side="left", padx=(0, 8))
+    ttk.Checkbutton(hr_checks, text="Loomy", variable=hr_sync_lo).pack(side="left", padx=(0, 8))
 
     hr_row = ttk.Frame(hrf)
     hr_row.pack(fill="x", pady=(2, 0))
@@ -3590,7 +3628,7 @@ def run_gui(smoke: bool = False):
 
     def set_install_path(key: str, path: str):
         def _apply():
-            e = {"cb": cb_path, "mc": mc_path, "rc": rc_path, "cp": cp_path}.get(key, ca_path)
+            e = {"cb": cb_path, "mc": mc_path, "rc": rc_path, "lo": lo_path}.get(key, ca_path)
             e.delete(0, "end")
             e.insert(0, path)
         ui(_apply)
@@ -3604,9 +3642,9 @@ def run_gui(smoke: bool = False):
                 p = filedialog.askdirectory(title="或选择安装文件夹（将自动定位其中的 exe）")
         if not p:
                 return
-        kind = {"cb": "wb", "mc": "mc", "rc": "rc", "cp": "cp"}.get(key, "ca")
+        kind = {"cb": "wb", "mc": "mc", "rc": "rc", "lo": "lo"}.get(key, "ca")
         resolved = resolve_install_input(p, kind)
-        settings[{"cb": "wb_path", "mc": "mc_path", "rc": "rc_path", "cp": "cp_path"}.get(key, "ca_path")] = resolved
+        settings[{"cb": "wb_path", "mc": "mc_path", "rc": "rc_path", "lo": "lo_path"}.get(key, "ca_path")] = resolved
         save_settings(settings)
         set_install_path(key, resolved)
         warn = "" if Path(resolved).exists() else "  ⚠ 路径不存在"
@@ -3614,7 +3652,7 @@ def run_gui(smoke: bool = False):
 
     def launch_program(key: str):
         """启动程序位置框里的桌面端程序"""
-        entry = {"cb": cb_path, "mc": mc_path, "rc": rc_path, "cp": cp_path}.get(key, ca_path)
+        entry = {"cb": cb_path, "mc": mc_path, "rc": rc_path, "lo": lo_path}.get(key, ca_path)
         p = entry.get().strip()
         if not p:
             emit(f"[{key}] 程序位置为空，先点“浏览…”指定或等自动探测")
@@ -3642,11 +3680,18 @@ def run_gui(smoke: bool = False):
         except Exception:
             return None
 
-        root.deiconify()
-        root.lift()
+    def show_from_tray():
+        """从系统托盘恢复主窗口（deiconify + 置前）。
+        注意：这个 def 行曾经丢失，函数体被留在 make_tray_image() 的 return 之后成了死代码，
+        菜单点击会 NameError: name 'show_from_tray' is not defined。"""
         try:
-            root.focus_force()
-        except Exception:
+            root.deiconify()
+            root.lift()
+            try:
+                root.focus_force()
+            except Exception:
+                pass
+        except Exception:  # noqa: BLE001
             pass
 
     def create_tray():
@@ -3678,7 +3723,6 @@ def run_gui(smoke: bool = False):
             "cb_port": int(cb_port.get()) if cb_port.get().strip().isdigit() else 8787,
             "cb_api_key": cb_key.get().strip(),
             "cb_desensitize": bool(cb_desens.get()),
-            "cb_filelog": bool(cb_filelog.get()),
             "mc_port": int(mc_port.get()) if mc_port.get().strip().isdigit() else 9000,
             "mc_api_key": mc_key.get().strip(),
             "mc_path": mc_path.get().strip(),
@@ -3690,16 +3734,16 @@ def run_gui(smoke: bool = False):
             "rc_models": settings.get("rc_models") or [],
             "rc_path": rc_path.get().strip(),
             "rc_auth_dir": rc_auth.get().strip(),
-            "cp_port": int(cp_port.get()) if cp_port.get().strip().isdigit() else 9300,
-            "cp_models": settings.get("cp_models") or [],
-            "cp_path": cp_path.get().strip(),
+            "lo_port": int(lo_port.get()) if lo_port.get().strip().isdigit() else 9400,
+            "lo_models": settings.get("lo_models") or [],
+            "lo_path": lo_path.get().strip(),
             "allow_lan": bool(lan_var.get()),
             "autostart": bool(autostart_var.get()),
             "hermes_sync_cb": bool(hr_sync_cb.get()),
             "hermes_sync_mc": bool(hr_sync_mc.get()),
             "hermes_sync_ca": bool(hr_sync_ca.get()),
             "hermes_sync_rc": bool(hr_sync_rc.get()),
-            "hermes_sync_cp": bool(hr_sync_cp.get()),
+            "hermes_sync_lo": bool(hr_sync_lo.get()),
         })
         save_settings(settings)
 
@@ -3785,7 +3829,7 @@ def run_gui(smoke: bool = False):
         except OSError as e:  # noqa: BLE001
             emit(f"[hermes] 写入 .env 失败: {e}")
 
-    def _buddyz_hermes_entries(host: str, cb_p: int, mc_p: int, ca_p: int, rc_p: int, cp_p: int) -> dict:
+    def _buddyz_hermes_entries(host: str, cb_p: int, mc_p: int, ca_p: int, rc_p: int, lo_p: int) -> dict:
         """providers.<id> 条目（桌面端自定义端点面板认这个 schema）"""
         def _entry(pid: str, port: int, key: str, models: list):
             models = models or ["auto"]
@@ -3802,7 +3846,7 @@ def run_gui(smoke: bool = False):
             "buddyz-mc": _entry("buddyz-mc", mc_p, "mc", eff_models("mc")),
             "buddyz-ca": _entry("buddyz-ca", ca_p, "ca", eff_models("ca")),
             "buddyz-rc": _entry("buddyz-rc", rc_p, "rc", eff_models("rc")),
-            "buddyz-cp": _entry("buddyz-cp", cp_p, "cp", eff_models("cp")),
+            "buddyz-lo": _entry("buddyz-lo", lo_p, "lo", eff_models("lo")),
         }
 
     def sync_to_hermes():
@@ -3815,10 +3859,10 @@ def run_gui(smoke: bool = False):
         mc_p = int(mc_port.get()) if mc_port.get().strip().isdigit() else 9000
         ca_p = int(ca_port.get()) if ca_port.get().strip().isdigit() else 9100
         rc_p = int(rc_port.get()) if rc_port.get().strip().isdigit() else 9200
-        cp_p = int(cp_port.get()) if cp_port.get().strip().isdigit() else 9300
+        lo_p = int(lo_port.get()) if lo_port.get().strip().isdigit() else 9400
 
         # 只同步勾选的 provider
-        all_entries = _buddyz_hermes_entries(host, cb_p, mc_p, ca_p, rc_p, cp_p)
+        all_entries = _buddyz_hermes_entries(host, cb_p, mc_p, ca_p, rc_p, lo_p)
         selected = {}
         names = []
         if hr_sync_cb.get():
@@ -3833,9 +3877,9 @@ def run_gui(smoke: bool = False):
         if hr_sync_rc.get():
             selected["buddyz-rc"] = all_entries["buddyz-rc"]
             names.append("小浣熊")
-        if hr_sync_cp.get():
-            selected["buddyz-cp"] = all_entries["buddyz-cp"]
-            names.append("CatPaw")
+        if hr_sync_lo.get():
+            selected["buddyz-lo"] = all_entries["buddyz-lo"]
+            names.append("Loomy")
         if not selected:
             emit("[hermes] 未勾选任何反代，请先勾选要同步的服务")
             return
@@ -3941,10 +3985,8 @@ def run_gui(smoke: bool = False):
             return list(CA_MODEL_CANDIDATES)
         if key == "rc":
             return []
-        if key == "cp":
-            # 旧存名单里的 "catpaw" 迁移为上游名 LongCat-2.0
-            norm = {"catpaw": "LongCat-2.0"}
-            return [norm.get(m, m) for m in stored] or list(CP_MODEL_CANDIDATES)
+        if key == "lo":
+            return list(stored) or list(LO_DEFAULT_MODELS)
         return list(MC_DEFAULT_MODELS)
 
     def apply_models_live(key: str, sel: list):
@@ -3965,22 +4007,22 @@ def run_gui(smoke: bool = False):
             rc = sys.modules.get("raccoon2openai")
             if rc is not None:
                 rc.CONFIG["exposed_models"] = list(sel)
-        elif key == "cp":
-            cp = sys.modules.get("catpaw2openai")
-            if cp is not None:
-                cp.CONFIG["exposed_models"] = list(sel)
+        elif key == "lo":
+            lo = sys.modules.get("loomy2openai")
+            if lo is not None:
+                lo.CONFIG["exposed_models"] = list(sel)
 
     def refresh_model_hints():
         cb = eff_models("cb")
         mc = eff_models("mc")
         ca = eff_models("ca")
         rc = eff_models("rc")
-        cp = eff_models("cp")
+        lo = eff_models("lo")
         cb_models_hint.set("模型: " + (", ".join(_disp("cb", m) for m in cb[:4]) + (" …共%d个" % len(cb) if len(cb) > 4 else "") if cb else "全部"))
         mc_models_hint.set("模型: " + (", ".join(mc[:4]) + (" …共%d个" % len(mc) if len(mc) > 4 else "") if mc else "默认"))
         ca_models_hint.set("模型: " + (", ".join(_disp("ca", m) for m in ca) if ca else "默认"))
         rc_models_hint.set("模型: " + (", ".join(rc[:4]) + (" …共%d个" % len(rc) if len(rc) > 4 else "") if rc else "上游全量（catalog）"))
-        cp_models_hint.set("模型: " + (", ".join(cp) if cp else "默认"))
+        lo_models_hint.set("模型: " + (", ".join(lo[:4]) + (" …共%d个" % len(lo) if len(lo) > 4 else "") if lo else "默认"))
 
     def mc_usage_text() -> str:
         """仅服务运行时查询今日用量，静默失败返回空串"""
@@ -4153,7 +4195,7 @@ def run_gui(smoke: bool = False):
     def _core(key: str):
         """取已加载或静默加载的核心模块；失败返回 None（只读显示映射，无副作用）。"""
         modname = {"cb": "converter", "mc": "monkeycode2openai", "ca": "codearts2openai",
-                   "rc": "raccoon2openai", "cp": "catpaw2openai"}.get(key)
+                   "rc": "raccoon2openai", "lo": "loomy2openai"}.get(key)
         if not modname:
             return None
         mod = sys.modules.get(modname)
@@ -4161,7 +4203,7 @@ def run_gui(smoke: bool = False):
             return mod
         try:
             loader = {"cb": import_converter, "mc": import_monkeycode, "ca": import_codearts,
-                      "rc": import_raccoon, "cp": import_catpaw}[key]
+                      "rc": import_raccoon, "lo": import_loomy}[key]
             return loader(log=lambda *a: None)
         except Exception:
             return None
@@ -4198,8 +4240,8 @@ def run_gui(smoke: bool = False):
                 return list(CB_MODEL_CANDIDATES)
             if key == "ca":
                 return list(CA_MODEL_CANDIDATES)
-            if key == "cp":
-                return list(CP_MODEL_CANDIDATES)
+            if key == "lo":
+                return list(LO_MODEL_CANDIDATES)
             if key == "rc":
                 mod = _core("rc")
                 if mod is not None and hasattr(mod, "catalog_name_map"):
@@ -4218,8 +4260,8 @@ def run_gui(smoke: bool = False):
     def _validate_models():
         """启动时验证各通道暴露模型名：显示优先 catalog 显示名，内部仍用线上名；
         无最新则用上回存储名兜底（只验证显示，不改存储）。"""
-        names = {"cb": "WorkBuddy", "mc": "MonkeyCode", "ca": "华为云", "rc": "小浣熊", "cp": "CatPaw"}
-        for key in ("cb", "mc", "ca", "rc", "cp"):
+        names = {"cb": "WorkBuddy", "mc": "MonkeyCode", "ca": "华为云", "rc": "小浣熊", "lo": "Loomy"}
+        for key in ("cb", "mc", "ca", "rc", "lo"):
             try:
                 stored = settings.get(f"{key}_models") or []
                 latest = _latest_internals(key)
@@ -4244,7 +4286,7 @@ def run_gui(smoke: bool = False):
         其余走各服务的端口输入框，非法值回退默认端口。
         """
         ent_dflt = {"mc": (mc_port, "9000"), "ca": (ca_port, "9100"),
-                    "rc": (rc_port, "9200"), "cp": (cp_port, "9300")}.get(key)
+                    "rc": (rc_port, "9200"), "lo": (lo_port, "9400")}.get(key)
         if not ent_dflt:
             return cb_url.get().strip().rstrip("/")
         ent, dflt = ent_dflt
@@ -4261,8 +4303,8 @@ def run_gui(smoke: bool = False):
             elif key == "rc":
                 port = rc_port.get().strip() if rc_port.get().strip().isdigit() else "9200"
                 url = f"http://127.0.0.1:{port}/v1/models"
-            elif key == "cp":
-                port = cp_port.get().strip() if cp_port.get().strip().isdigit() else "9300"
+            elif key == "lo":
+                port = lo_port.get().strip() if lo_port.get().strip().isdigit() else "9400"
                 url = f"http://127.0.0.1:{port}/v1/models"
             elif key == "ca":
                 port = ca_port.get().strip() if ca_port.get().strip().isdigit() else "9100"
@@ -4280,7 +4322,7 @@ def run_gui(smoke: bool = False):
 
     def models_dialog(key: str):
         titles = {"cb": "CodeBuddy → OpenAI", "mc": "MonkeyCode → OpenAI", "ca": "CodeArts → OpenAI",
-                  "rc": "Raccoon → OpenAI", "cp": "CatPaw → OpenAI"}
+                  "rc": "Raccoon → OpenAI", "lo": "Loomy → OpenAI"}
 
         def compute_cands() -> list:
             """取候选模型名；点“刷新模型”时会重新调用一次（线上实时为准）。"""
@@ -4306,7 +4348,7 @@ def run_gui(smoke: bool = False):
                 cands = [_disp(key, m) for m in base]
             else:
                 cands = {"mc": MC_MODEL_CANDIDATES, "cb": CB_MODEL_CANDIDATES,
-                         "rc": RACOON_MODEL_CANDIDATES, "cp": CP_MODEL_CANDIDATES}.get(key, CA_MODEL_CANDIDATES)
+                         "rc": RACOON_MODEL_CANDIDATES, "lo": LO_MODEL_CANDIDATES}.get(key, CA_MODEL_CANDIDATES)
             ver = settings.get(f"{key}_verified") or {}
             if "dead" in ver:
                 dead_set = set(ver.get("dead") or [])
@@ -4643,7 +4685,7 @@ def run_gui(smoke: bool = False):
             conv = import_converter(emit)
             conv.CONFIG["api_key"] = cb_key.get().strip()
             conv.CONFIG["desensitize"] = bool(cb_desens.get())
-            conv.CONFIG["log_path"] = str(logs_dir() / "codebuddy2openai.log") if cb_filelog.get() else None
+            conv.CONFIG["log_path"] = None   # 已移除「请求日志(文件)」，不再写盘
             af = conv.find_auth_file()
             conv.CONFIG["cred"] = conv.CredentialManager(af) if af else None
             conv.CONFIG["exposed_models"] = eff_models("cb")
@@ -4778,48 +4820,49 @@ def run_gui(smoke: bool = False):
         _http_test("rc", base + "/v1/models", lambda d: f"models OK · {len((d or {}).get('data') or [])} 个模型")
         _http_test_chat("rc", base + "/v1/chat/completions")
 
-    def start_cp():
-        svc = services["cp"]
+    def start_lo():
+        svc = services["lo"]
         if svc.running:
-            emit("[cp] 已在运行")
+            emit("[lo] 已在运行")
             return
         if not ensure_ready():
             return
         try:
-            port = int(cp_port.get())
+            port = int(lo_port.get())
         except ValueError:
-            emit("[cp] 端口无效"); return
+            emit("[lo] 端口无效"); return
         host = _host()
         if not port_free(host, port):
             if reclaim_stale_port(host, port, emit) and port_free(host, port):
-                emit(f"[cp] 已关闭残留进程并释放端口 {port}，继续启动")
+                emit(f"[lo] 已关闭残留进程并释放端口 {port}，继续启动")
             else:
-                _ui_status("cp", "error", f"端口 {port} 被占用")
+                _ui_status("lo", "error", f"端口 {port} 被占用")
                 return
-        emit(f"[cp] 启动中 … http://{host}:{port}")
+        emit(f"[lo] 启动中 … http://{host}:{port}")
         try:
-            cp = import_catpaw(emit)
-            cp.CONFIG["exposed_models"] = eff_models("cp")
-            cp.CONFIG["log_path"] = str(logs_dir() / "catpaw2openai.log")
-            cp.CONFIG["port"] = port
-            svc.start(cp.app, host, port)
+            lo = import_loomy(emit)
+            lo.CONFIG["exposed_models"] = eff_models("lo")
+            lo.CONFIG["log_path"] = str(logs_dir() / "loomy2openai.log")
+            lo.CONFIG["port"] = port
+            svc.start(lo.app, host, port)
             _persist()
+            ui(refresh_creds)
         except Exception as e:  # noqa: BLE001
-            emit(f"[cp] 启动失败：{type(e).__name__}: {e}")
+            emit(f"[lo] 启动失败：{type(e).__name__}: {e}")
 
-    def test_cp():
-        if not services["cp"].running:
-            emit("[cp] 未运行，无法测试"); return
-        base = f"http://127.0.0.1:{cp_port.get() if cp_port.get().strip().isdigit() else 9300}"
-        _http_test("cp", base + "/v1/models", lambda d: f"models OK · {len((d or {}).get('data') or [])} 个模型")
-        _http_test_chat("cp", base + "/v1/chat/completions")
+    def test_lo():
+        if not services["lo"].running:
+            emit("[lo] 未运行，无法测试"); return
+        base = f"http://127.0.0.1:{lo_port.get() if lo_port.get().strip().isdigit() else 9400}"
+        _http_test("lo", base + "/v1/models", lambda d: f"models OK · {len((d or {}).get('data') or [])} 个模型")
+        _http_test_chat("lo", base + "/v1/chat/completions")
 
     def start_all():
         start_cb()
         start_mc()
         start_ca()
         start_rc()
-        start_cp()
+        start_lo()
         _schedule_refresh()
 
     def stop_all():
@@ -4827,13 +4870,28 @@ def run_gui(smoke: bool = False):
         stop_svc("mc")
         stop_svc("ca")
         stop_svc("rc")
-        stop_svc("cp")
+        stop_svc("lo")
 
     def fix_deps():
+        """安装/修复依赖按钮。无论有没有缺失都必须给出回显——
+        以前依赖齐全时 install_deps 静默 return，点下去像“没反应”。"""
         if is_frozen():
             emit("[deps] EXE 版已内置全部依赖，无需安装")
             return
-        install_deps(emit)
+        emit(f"[deps] 检查依赖 …（Python：{sys.executable}）")
+        miss = missing_deps()
+        if not miss:
+            emit(f"[deps] ✓ 依赖完整，无需修复（{len(REQUIRED_DEPS)} 项全部就绪）")
+            emit(f"[deps]   清单：{'、'.join(p for p, _ in REQUIRED_DEPS)}")
+            return
+        emit(f"[deps] 检测到缺失：{' '.join(miss)}，开始后台安装 …")
+        ok = install_deps(emit)
+        still = missing_deps()
+        if ok and not still:
+            emit("[deps] ✓ 修复完成，依赖已就绪")
+        else:
+            emit(f"[deps] ✗ 修复未完成{'，仍缺：' + ' '.join(still) if still else ''}")
+            emit(f"[deps]   可手动执行：\"{sys.executable}\" -m pip install {' '.join(miss)}")
 
     def test_cb():
         if not services["cb"].running:
@@ -4963,18 +5021,198 @@ def run_gui(smoke: bool = False):
         time.sleep(3)
         _maybe_auto_claim()
 
+    # ---------------- 凭证状态提示（每个通道一句人话） ----------------
+    # 五个通道的凭证都来自「桌面端登录后留下的文件」，网关读文件直连上游，
+    # 所以桌面端不必常开。这里把「有没有凭证 / 过没过期 / 能不能关桌面端 /
+    # 什么时候要重登」一次讲清楚。
+    CRED_NAMES = {"cb": "WorkBuddy", "mc": "MonkeyCode", "ca": "华为云 CodeArts",
+                  "rc": "小浣熊", "lo": "Loomy"}
+
+    def _fmt_ms(ms) -> str:
+        """毫秒时间戳 → 本地时间字符串"""
+        try:
+            v = float(ms or 0)
+            return time.strftime("%Y-%m-%d %H:%M", time.localtime(v / 1000.0)) if v else "—"
+        except Exception:  # noqa: BLE001
+            return "—"
+
+    def _fmt_iso(s) -> str:
+        """ISO8601（UTC）→ 本地时间字符串"""
+        try:
+            from datetime import datetime, timezone
+            if not s:
+                return "—"
+            dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone().strftime("%Y-%m-%d %H:%M")
+        except Exception:  # noqa: BLE001
+            return str(s)[:16] if s else "—"
+
+    def _left(ts_sec: float) -> str:
+        d = (ts_sec - time.time()) / 86400.0
+        if d <= 0:
+            return "已过期"
+        return "不足 1 天" if d < 1 else f"剩约 {int(d)} 天"
+
+    def _cred_cb():
+        af = find_cb_auth_file()
+        if af is None:
+            return ("✗ 未找到登录凭证 —— 请打开 WorkBuddy / CodeBuddy 桌面端登录一次", "#c0392b")
+        try:
+            d = json.loads(af.read_text(encoding="utf-8"))
+        except Exception as e:  # noqa: BLE001
+            return (f"✗ 凭证文件读取失败：{e}", "#c0392b")
+        auth = d.get("auth") or {}
+        acct = d.get("account") or {}
+        exp = float(auth.get("expiresAt") or 0)
+        rexp = float(auth.get("refreshExpiresAt") or 0)
+        who = f"{acct.get('nickname') or '?'} @ {auth.get('domain') or '-'}"
+        now_ms = time.time() * 1000
+        if exp and now_ms >= exp - 60_000:
+            if rexp and now_ms < rexp:
+                return (f"● 访问令牌刚到期，但刷新令牌有效（{_fmt_ms(rexp)} 前可自动续期）"
+                        " —— 正常运行，网关会自动刷新，可以关闭桌面端", "#b8860b")
+            return (f"✗ 登录凭证已过期（{_fmt_ms(exp)}）—— 请重新登录 WorkBuddy / CodeBuddy",
+                    "#c0392b")
+        return (f"✓ 凭证有效 · {who} · {_fmt_ms(exp)} 到期（{_left(exp / 1000)}）"
+                " —— 正常运行，网关会自动续期，可以关闭桌面端", "#1a7f37")
+
+    def _cred_mc():
+        base = ""
+        try:
+            mc = sys.modules.get("monkeycode2openai")
+            if mc is not None and mc.CONFIG.get("base_url"):
+                base = f"{mc.CONFIG['base_url']}（{mc.CONFIG.get('mode', 'static')}）"
+        except Exception:  # noqa: BLE001
+            pass
+        if not base:
+            b = monkeycode_upstream_base()
+            base = b if b else ""
+        ck = Path(os.environ.get("APPDATA") or "") / "com.chaitin.baizhi.monkeycode" / "monkeycode-cookies.json"
+        has_ck = ck.is_file() and ck.stat().st_size > 2
+        # 会话是否已被上游判为失效（额度跟踪线程会拿到 401）
+        ck_err = ""
+        try:
+            with _q_lock:
+                ck_err = str((_q_meta.get("mc") or {}).get("err") or "")
+        except Exception:  # noqa: BLE001
+            pass
+        if not base:
+            return ("✗ 未找到登录凭证 —— 请打开 MonkeyCode 桌面端登录一次", "#c0392b")
+        if not has_ck:
+            return (f"✓ 对话凭证有效 · {base} —— 可关闭桌面端；但未找到会话文件，"
+                    "余额/签到不可用（重登桌面端即可）", "#b8860b")
+        if "401" in ck_err or "会话" in ck_err or "无效" in ck_err:
+            return (f"● 对话凭证有效 · {base} —— 对话正常，可关闭桌面端；"
+                    "但余额/签到会话已过期，请重登 MonkeyCode 桌面端", "#b8860b")
+        return (f"✓ 凭证有效 · {base} · 会话正常 —— 正常运行，可以关闭桌面端", "#1a7f37")
+
+    def _cred_ca():
+        fp = data_dir() / "ca_codearts.json"
+        st = {}
+        try:
+            if fp.is_file():
+                st = json.loads(fp.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            st = {}
+        has_dpop = bool(st.get("refresh_token"))
+        tk = st.get("ticket") or {}
+        last = st.get("last") if isinstance(st.get("last"), dict) else {}
+        c_exp = (last.get("credentials") or {}).get("expiration")
+        if not has_dpop and not tk.get("access"):
+            return ("✗ 未找到登录凭证 —— 请打开 CodeArts 桌面端登录一次，或点「授权」",
+                    "#c0392b")
+        parts = []
+        if has_dpop:
+            parts.append(f"DPoP 会话有效（{_fmt_iso(c_exp)} 到期，网关自动续期）")
+        else:
+            parts.append("DPoP 会话缺失")
+        parts.append(f"ticket 有效（{_fmt_iso(tk.get('expires_at'))} 到期）" if tk.get("access")
+                     else "ticket 未授权（余额/签到会退用 DPoP）")
+        return ("✓ 凭证就绪 · " + " · ".join(parts)
+                + " —— 可以关闭桌面端（但别与桌面端同时使用，令牌会互相顶掉）", "#1a7f37")
+
+    def _cred_rc():
+        d = rc_auth.get().strip() or str(Path.home() / ".box-agent" / "config")
+        p = Path(d) / "auth.json"
+        if not p.is_file():
+            return (f"✗ 未找到登录凭证（{p}）—— 请打开小浣熊桌面端登录一次", "#c0392b")
+        try:
+            j = json.loads(p.read_text(encoding="utf-8"))
+        except Exception as e:  # noqa: BLE001
+            return (f"✗ auth.json 读取失败：{e}", "#c0392b")
+        tok = j.get("access_token") or j.get("token") or j.get("auth_token")
+        if not tok:
+            return ("✗ auth.json 内没有 access_token —— 请重新登录小浣熊桌面端", "#c0392b")
+        rt = "已备" if j.get("refresh_token") else "缺失"
+        return (f"✓ 凭证有效 · access_token 就绪（refresh_token {rt}）"
+                " —— 正常运行，401 时网关自动刷新，可以关闭桌面端", "#1a7f37")
+
+    def _cred_lo():
+        """Loomy 凭证：优先运行中的内嵌 opencode，其次 Local Storage 的会话。"""
+        lo = sys.modules.get("loomy2openai")
+        if lo is None:
+            return ("· 服务未启动，无法探测凭证 —— 启动后自动检测", "#555")
+        src, base, key = "", "", ""
+        try:
+            got = lo._from_opencode()
+            if got:
+                src, (base, key, _m) = "Loomy 内嵌 opencode", got
+            else:
+                got = lo._from_local_storage()
+                if got:
+                    src, (base, key, _m) = "Loomy 本地会话", got
+        except Exception as e:  # noqa: BLE001
+            return (f"✗ 探测失败：{e}", "#c0392b")
+        if not key:
+            return ("✗ 未找到登录凭证 —— 请打开 Loomy 桌面端登录一次", "#c0392b")
+        return (f"✓ 凭证有效 · 来源：{src} · {base} · 会话 {len(key)} 字符"
+                " —— 正常运行，可以关闭 Loomy 桌面端（会话失效后需重开登录）", "#1a7f37")
+
+    _cred_targets = {"cb": cb_cred, "mc": mc_cred, "ca": ca_cred, "rc": rc_cred, "lo": lo_cred}
+    _cred_probes = {"cb": _cred_cb, "mc": _cred_mc, "ca": _cred_ca, "rc": _cred_rc, "lo": _cred_lo}
+
+    _cred_cache: dict = {}
+    _cred_lock = threading.Lock()
+
+    def _probe_creds():
+        """后台线程：算出各通道凭证文案。
+        注意里面可能有阻塞操作（Loomy 要请求 opencode、扫 leveldb），
+        绝不能放在 Tk 线程里跑——那正是界面卡顿的主因。"""
+        out = {}
+        for key in _cred_probes:
+            try:
+                out[key] = _cred_probes[key]()
+            except Exception as e:  # noqa: BLE001
+                out[key] = (f"✗ 凭证状态检测失败：{e}", "#c0392b")
+        with _cred_lock:
+            _cred_cache.clear()
+            _cred_cache.update(out)
+
+    def refresh_creds(verbose: bool = False):
+        """Tk 线程：只把缓存好的文案写进标签，零 IO。"""
+        with _cred_lock:
+            snap = dict(_cred_cache)
+        for key, lbl in _cred_targets.items():
+            txt, fg = snap.get(key, ("· 检测中…", "#555"))
+            lbl.configure(text=f"{CRED_NAMES[key]}：{txt}", foreground=fg)
+            if verbose:
+                emit(f"[{key}] 凭证：{txt}")
+
     # ---------------- 实时额度跟踪（MonkeyCode / 华为云 CodeArts） ----------------
     # 后台守护线程按 QUOTA_INTERVAL 秒拉取两通道余额/用量，主线程渲染到 *_quota 行。
     # 取数只走本地服务端点（:9000/v1/wallet · :9100/v1/balance），不直连上游，
     # 因此不额外消耗上游额度、也不与授权逻辑争抢 refresh_token。
     QUOTA_INTERVAL = float(os.environ.get("BUDDYZ_QUOTA_INTERVAL") or 10.0)
 
-    _q_data: dict = {"mc": None, "ca": None}   # 最近一次成功快照
-    _q_meta: dict = {"mc": {}, "ca": {}}       # {"off":bool,"ts":float,"err":str}
+    _q_data: dict = {"mc": None, "ca": None, "lo": None}   # 最近一次成功快照
+    _q_meta: dict = {"mc": {}, "ca": {}, "lo": {}}         # {"off":bool,"ts":float,"err":str}
     _q_lock = threading.Lock()
 
     def _q_endpoint(key: str) -> str:
-        ent, dflt = (mc_port, "9000") if key == "mc" else (ca_port, "9100")
+        ent, dflt = {"mc": (mc_port, "9000"), "ca": (ca_port, "9100"),
+                     "lo": (lo_port, "9400")}.get(key, (ca_port, "9100"))
         cur = ent.get().strip()
         return f"http://127.0.0.1:{cur if cur.isdigit() else dflt}"
 
@@ -4999,7 +5237,7 @@ def run_gui(smoke: bool = False):
                     u, e2 = _http_json(base + "/v1/usage", timeout=5)
                     if not e2 and isinstance(u, dict):
                         snap["_usage"] = u
-            else:
+            elif key == "ca":
                 b, e1 = _http_json(base + "/v1/balance", timeout=10)
                 if e1:
                     err = e1
@@ -5011,6 +5249,14 @@ def run_gui(smoke: bool = False):
                     a, e2 = _http_json(base + "/v1/auth/status", timeout=8)
                     if not e2 and isinstance(a, dict):
                         snap["_auth"] = a
+            else:  # lo：Loomy 积分（读本地缓存摘要）
+                p, e1 = _http_json(base + "/v1/points", timeout=10)
+                if e1:
+                    err = e1
+                elif isinstance(p, dict) and p.get("ok"):
+                    snap = dict(p.get("data") or {})
+                else:
+                    err = str((p or {}).get("error") or "积分不可用")
         except Exception as e:  # noqa: BLE001
             err = f"{type(e).__name__}: {e}"
         with _q_lock:
@@ -5045,7 +5291,7 @@ def run_gui(smoke: bool = False):
             u = snap.get("_usage") or {}
             if u:
                 parts.append(f"本机今日 {u.get('total', 0):,} tokens / {u.get('requests', 0)} 次")
-        else:
+        elif key == "ca":
             tb = int(snap.get("total_balance") or 0)
             tq = int(snap.get("total_quota") or 0)
             ua = int(snap.get("used_amount") or 0)
@@ -5053,7 +5299,12 @@ def run_gui(smoke: bool = False):
             a = snap.get("_auth") or {}
             if a:
                 parts.append("授权有效" if a.get("ok") else "未授权")
-        line = "额度跟踪 · " + " · ".join(parts) + f" · 更新 {stamp}"
+        else:  # lo
+            bal = int(snap.get("balance") or 0)
+            day = int(snap.get("dailyBalance") or 0)
+            parts = [f"永久积分 {bal:,} · 每日积分 {day:,}"]
+        head = "Loomy 积分" if key == "lo" else "额度跟踪"
+        line = f"{head} · " + " · ".join(parts) + f" · 更新 {stamp}"
         return (line, "#b8860b" if meta.get("err") else "#1a7f37")
 
     def render_quota() -> None:
@@ -5063,18 +5314,22 @@ def run_gui(smoke: bool = False):
             mc_quota.configure(text=t, foreground=fg)
             t, fg = _fmt_quota("ca")
             ca_quota.configure(text=t, foreground=fg)
+            t, fg = _fmt_quota("lo")
+            lo_quota.configure(text=t, foreground=fg)
         except Exception:  # noqa: BLE001
             pass
 
     def _q_loop() -> None:
         """后台守护线程：周期性刷新两通道额度并请主线程重渲染。"""
         while not _exiting:
-            for k in ("mc", "ca"):
+            for k in ("mc", "ca", "lo"):
                 try:
                     _q_probe(k)
                 except Exception:  # noqa: BLE001
                     pass
+            _probe_creds()      # 后台线程里探测（含 HTTP/扫文件），不阻塞 Tk
             ui(render_quota)
+            ui(refresh_creds)   # 渲染只读缓存
             try:
                 _maybe_auto_claim()   # 跨天后自动补领福利（当天已领则直接返回）
             except Exception:  # noqa: BLE001
@@ -5091,6 +5346,7 @@ def run_gui(smoke: bool = False):
             emit(f"[{key}] 测试 {url} 失败：{e}")
 
     def _http_test_chat(key, url):
+        ui(refresh_creds)   # 点「测试」时顺带刷新凭证状态，立刻能看到最新结论
         import urllib.request
         model = (eff_models(key) or ["auto"])[0]
         # WorkBuddy 上游要求首条为 system prompt，否则 400（code 11128）
@@ -5118,11 +5374,11 @@ def run_gui(smoke: bool = False):
                                 ("mc", "mc_path", "MonkeyCode"),
                                 ("ca", "ca_path", "CodeArts"),
                                 ("rc", "rc_path", "商汤小浣熊"),
-                                ("cp", "cp_path", "CatPaw")):
-            entry = {"cb": cb_path, "mc": mc_path, "rc": rc_path, "cp": cp_path}.get(key, ca_path)
+                                ("lo", "lo_path", "Loomy")):
+            entry = {"cb": cb_path, "mc": mc_path, "rc": rc_path, "lo": lo_path}.get(key, ca_path)
             cur = entry.get().strip()
             if not cur:
-                found = find_install({"cb": "wb", "mc": "mc", "rc": "rc", "cp": "cp"}.get(key, "ca"))
+                found = find_install({"cb": "wb", "mc": "mc", "rc": "rc", "lo": "lo"}.get(key, "ca"))
                 if found:
                     settings[skey] = found
                     save_settings(settings)
@@ -5188,10 +5444,16 @@ def run_gui(smoke: bool = False):
                 foreground="#1a7f37")
         ui(apply)
 
+    _status_seen: dict = {}
+
     def _ui_status(key, kind, text):
+        if _status_seen.get(key) == (kind, text):   # 状态没变就不重画（原来每 800ms 无脑 configure）
+            return
+        _status_seen[key] = (kind, text)
+
         def apply():
             color = {"run": "#1a7f37", "error": "#c0392b", "off": "#999"}.get(kind, "#999")
-            mapping = {"cb": (cb_status, cb_led), "mc": (mc_status, mc_led), "ca": (ca_status, ca_led), "rc": (rc_status, rc_led), "cp": (cp_status, cp_led)}
+            mapping = {"cb": (cb_status, cb_led), "mc": (mc_status, mc_led), "ca": (ca_status, ca_led), "rc": (rc_status, rc_led), "lo": (lo_status, lo_led)}
             lab, led = mapping.get(key, (cb_status, cb_led))
             lab.configure(text=text, foreground=color)
             led.itemconfigure("o",
@@ -5202,26 +5464,49 @@ def run_gui(smoke: bool = False):
         ui(apply)
 
     # ---------------- 队列泵 & LED 轮询 ----------------
+    _log_rows = [0]          # 已插入行数（避免每行都做 log_text.index()）
+
+    def _append_logs(lines: list):
+        """一批日志只 configure 两次、只 see 一次。
+        原来是每行 configure×2 + index() + see()，日志一多就明显卡。"""
+        if len(lines) > 200:                 # 单次最多插 200 行
+            lines = lines[-200:]
+        log_text.configure(state="normal")
+        for ln in lines:
+            log_text.insert("end", ln + "\n", log_line_tag(ln))
+        _log_rows[0] += len(lines)
+        if _log_rows[0] > 3000:              # 只在需要裁剪时才真正数一次行数
+            try:
+                total = int(log_text.index("end-1c").split(".")[0])
+            except Exception:  # noqa: BLE001
+                total = _log_rows[0]
+            drop = max(0, total - 2500)
+            if drop:
+                log_text.delete("1.0", f"{drop + 1}.0")
+            _log_rows[0] = total - drop
+        log_text.see("end")
+        log_text.configure(state="disabled")
+
     def pump():
+        logs, calls = [], []
         try:
             while True:
                 kind, payload = log_q.get_nowait()
                 if kind == "log":
-                    log_text.configure(state="normal")
-                    log_text.insert("end", payload + "\n", log_line_tag(payload))
-                    if int(log_text.index("end-1c").split(".")[0]) > 3000:
-                        log_text.delete("1.0", "200.0")
-                    log_text.see("end")
-                    log_text.configure(state="disabled")
-                elif kind == "call":
-                    fn, args = payload
-                    try:
-                        fn(*args)
-                    except Exception as e:  # noqa: BLE001
-                        print(f"[ui-error] {e}")
+                    logs.append(payload)
+                else:
+                    calls.append(payload)
         except queue.Empty:
             pass
-        root.after(120, pump)
+        if calls:
+            for fn, args in calls:
+                try:
+                    fn(*args)
+                except Exception as e:  # noqa: BLE001
+                    print(f"[ui-error] {e}")
+        if logs:
+            _append_logs(logs)
+        root.after(150, pump)
 
     def poll_status():
         for key, svc in services.items():
@@ -5232,7 +5517,7 @@ def run_gui(smoke: bool = False):
                 _ui_status(key, "error", f"异常：{svc.error[:60]}")
             else:
                 _ui_status(key, "off", "未启动")
-        root.after(800, poll_status)
+        root.after(1500, poll_status)
 
     _exiting = False
 
@@ -5242,6 +5527,12 @@ def run_gui(smoke: bool = False):
             return
         _exiting = True
         _persist()
+        try:                                  # 冲刷日志缓冲
+            if _logf.get("fh") is not None and not _logf["fh"].closed:
+                _logf["fh"].flush()
+                _logf["fh"].close()
+        except Exception:  # noqa: BLE001
+            pass
         emit("正在退出 …")
         for svc in services.values():
             try:
@@ -5279,7 +5570,7 @@ def run_gui(smoke: bool = False):
             time.sleep(delay)
             try:
                 bases = {}
-                for k, ent, dflt in (("mc", mc_port, 9000), ("ca", ca_port, 9100), ("cp", cp_port, 9300)):
+                for k, ent, dflt in (("mc", mc_port, 9000), ("ca", ca_port, 9100), ("lo", lo_port, 9400)):
                     try:
                         p = int(ent.get())
                     except ValueError:
@@ -5300,6 +5591,8 @@ def run_gui(smoke: bool = False):
             refresh_model_hints()
             materialize(emit)
             detect_env()
+            _probe_creds()                    # 后台探测
+            ui(lambda: refresh_creds(True))   # 再在 Tk 线程渲染 + 写日志
             _validate_models()
             create_tray()
             if autostart_var.get() and not smoke:
@@ -5375,18 +5668,18 @@ def run_selftest() -> int:
         except Exception as e:  # noqa: BLE001
             step("import_raccoon", False, e)
         try:
-            cp = import_catpaw()
-            step("import_catpaw", True, type(cp.app).__name__)
+            lo = import_loomy()
+            step("import_loomy", True, type(lo.app).__name__)
         except Exception as e:  # noqa: BLE001
-            step("import_catpaw", False, e)
+            step("import_loomy", False, e)
     else:
         step("import_converter", False, "deps missing")
         step("import_monkeycode", False, "deps missing")
         step("import_codearts", False, "deps missing")
         step("import_raccoon", False, "deps missing")
-        step("import_catpaw", False, "deps missing")
+        step("import_loomy", False, "deps missing")
 
-    result["ok"] = all(v["ok"] for k, v in result["steps"].items() if k in ("materialize", "deps", "import_converter", "import_monkeycode", "import_codearts", "import_raccoon", "import_catpaw"))
+    result["ok"] = all(v["ok"] for k, v in result["steps"].items() if k in ("materialize", "deps", "import_converter", "import_monkeycode", "import_codearts", "import_raccoon", "import_loomy"))
     out = app_root() / "selftest_result.json"
     try:
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -5398,7 +5691,7 @@ def run_selftest() -> int:
     return 0 if result["ok"] else 1
 
 
-def run_serve(cb_port: int, mc_port: int, ca_port: int, rc_port: int, cp_port: int, host: str):
+def run_serve(cb_port: int, mc_port: int, ca_port: int, rc_port: int, lo_port: int, host: str):
     materialize()
     os.environ["BUDDYZ_DATA_DIR"] = str(data_dir())
     if missing_deps():
@@ -5413,7 +5706,7 @@ def run_serve(cb_port: int, mc_port: int, ca_port: int, rc_port: int, cp_port: i
     conv = import_converter()
     af = conv.find_auth_file()
     conv.CONFIG["cred"] = conv.CredentialManager(af) if af else None
-    conv.CONFIG["log_path"] = str(logs_dir() / "codebuddy2openai.log")
+    conv.CONFIG["log_path"] = None   # 已移除「请求日志(文件)」，不再写盘
     conv.CONFIG["exposed_models"] = list(_cb_models) if _cb_models else None
     svcs.append(("cb", ProxyService("cb", "cb"), conv.app, cb_port))
     mc = import_monkeycode()
@@ -5436,11 +5729,11 @@ def run_serve(cb_port: int, mc_port: int, ca_port: int, rc_port: int, cp_port: i
     if rc_dir:
         rc.CONFIG["auth_dir"] = rc_dir
     svcs.append(("rc", ProxyService("rc", "rc"), rc.app, rc_port))
-    _cp_models = [{"catpaw": "LongCat-2.0"}.get(m, m) for m in (_s.get("cp_models") or [])]
-    cp = import_catpaw()
-    cp.CONFIG["exposed_models"] = list(_cp_models) or list(["LongCat-2.0"])
-    cp.CONFIG["log_path"] = str(logs_dir() / "catpaw2openai.log")
-    svcs.append(("cp", ProxyService("cp", "cp"), cp.app, cp_port))
+    _lo_models = list(_s.get("lo_models") or []) or list(LO_DEFAULT_MODELS)
+    lo = import_loomy()
+    lo.CONFIG["exposed_models"] = list(_lo_models)
+    lo.CONFIG["log_path"] = str(logs_dir() / "loomy2openai.log")
+    svcs.append(("lo", ProxyService("lo", "lo"), lo.app, lo_port))
     for name, svc, app, port in svcs:
         if not port_free(host, port):
             if reclaim_stale_port(host, port) and port_free(host, port):
@@ -5456,7 +5749,7 @@ def run_serve(cb_port: int, mc_port: int, ca_port: int, rc_port: int, cp_port: i
         try:
             bases = {}
             for n, s, _a, p in svcs:
-                if n in ("mc", "ca", "cp") and s.running:
+                if n in ("mc", "ca", "lo") and s.running:
                     bases[n] = f"http://127.0.0.1:{p}/v1"
             refresh_models_startup(_s, print, bases)
         except Exception as e:  # noqa: BLE001
@@ -5495,7 +5788,7 @@ def main():
         host = "127.0.0.1"
         if "--host" in args:
             host = args[args.index("--host") + 1]
-        run_serve(_v("--cb-port", 8787), _v("--mc-port", 9000), _v("--ca-port", 9100), _v("--rc-port", 9200), _v("--cp-port", 9300), host)
+        run_serve(_v("--cb-port", 8787), _v("--mc-port", 9000), _v("--ca-port", 9100), _v("--rc-port", 9200), _v("--lo-port", 9400), host)
         return
     run_gui()
 

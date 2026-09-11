@@ -1,6 +1,6 @@
 # BuddyZ Gateway
 
-把本机已登录的三家 AI 桌面端订阅，统一转成 **OpenAI 兼容 API**，供任意客户端（ChatBox、Cherry Studio、OpenWebUI、Hermes Agent、脚本…）调用。
+把本机已登录的五家 AI 桌面端订阅，统一转成 **OpenAI 兼容 API**，供任意客户端（ChatBox、Cherry Studio、OpenWebUI、Hermes Agent、脚本…）调用。
 
 单文件 Python + Tkinter GUI，**零外部服务依赖**：不装 Docker、不填 Cookie、不需要手动粘贴任何密钥 —— 只要本机对应的桌面端登录过，网关自己会去找凭证。
 
@@ -9,8 +9,10 @@
 | ① CodeBuddy / WorkBuddy | `copilot.tencent.com` / `codebuddy.ai` | 桌面端 `auth/*.info` | 带原生 function calling / tool_calls |
 | ② MonkeyCode | `ai-models.app.baizhi.cloud` | 桌面端 `config.json` | 支持多 key 号池轮转、今日用量、积分、每日签到 |
 | ③ 华为云 CodeArts（码道） | `snap-access` / `opengw` | 桌面端加密会话 → AK/SK | DPoP 自动续期、余额查询、一键 OAuth 授权 |
+| ④ 商汤小浣熊办公 | `xiaohuanxiong.com` | 桌面端 `auth.json` | 401 自动刷新 token 并落盘 |
+| ⑤ Loomy（讯飞 iModel） | `loomyad.xunfei.cn` | 桌面端会话 / 内嵌 opencode | 12 个模型（`spark-x` 免费，其余按倍率扣积分）、积分查询、原生 tool_calls |
 
-三个服务**各自独立端口**、独立启停，互不影响。
+五个服务**各自独立端口**、独立启停，互不影响。
 
 ---
 
@@ -27,6 +29,8 @@ GUI 里逐个面板点「启动」，或点顶部「一键启动」全部拉起�
 Base URL : http://127.0.0.1:8787/v1     # WorkBuddy 通道
 Base URL : http://127.0.0.1:9000/v1     # MonkeyCode 通道
 Base URL : http://127.0.0.1:9100/v1     # 华为云 CodeArts 通道
+Base URL : http://127.0.0.1:9200/v1     # 小浣熊通道
+Base URL : http://127.0.0.1:9400/v1     # Loomy 通道
 API Key  : 留空
 ```
 
@@ -44,7 +48,7 @@ Windows 想彻底去掉控制台黑框，用 `launch_silent.vbs`（内部走 `py
 
 ## 各通道端点
 
-三个通道都实现 OpenAI 标准接口：
+五个通道都实现 OpenAI 标准接口：
 
 - `GET  /v1/models` — 模型列表
 - `POST /v1/chat/completions` — 对话（流式 / 非流式）
@@ -61,6 +65,7 @@ Windows 想彻底去掉控制台黑框，用 `launch_silent.vbs`（内部走 `py
 | CodeArts | `POST /v1/claim` | 每日福利领取 |
 | CodeArts | `GET /v1/auth/url` | 生成 OAuth 授权链接 |
 | CodeArts | `GET /oauth/callback` | OAuth 回调（自动换票并持久化） |
+| Loomy | `GET /v1/points` | 积分余额（永久积分 / 每日积分，读 Loomy 本地缓存） |
 
 ---
 
@@ -77,7 +82,7 @@ Windows 想彻底去掉控制台黑框，用 `launch_silent.vbs`（内部走 `py
 - ticket 链（独立 OAuth 授权）：有效期约 24h，负责余额 / 签到；免费模型需配合 `maas_type: benefit` 头才有路由。
 
 **Hermes Agent 集成**
-一键把三条通道写进 Hermes 的 `providers`（含 `.env` 里的占位 key），自动覆盖本机**全部** profile。
+一键把五条通道写进 Hermes 的 `providers`（含 `.env` 里的占位 key），自动覆盖本机**全部** profile。
 
 **高 DPI 适配**
 Per-Monitor DPI Aware v2；窗口创建后按所在显示器 `rcWork`（已扣任务栏）回位，多屏不跑出可视区。
@@ -93,13 +98,14 @@ Per-Monitor DPI Aware v2；窗口创建后按所在显示器 `rcWork`（已扣�
 ## 目录结构
 
 ```
-BuddyZGateway.py       # 单文件程序（GUI + 三个反代核心，内嵌为 base64）
+BuddyZGateway.py       # 单文件程序（GUI + 五个反代核心，内嵌为 base64）
 BuddyZGateway.spec     # PyInstaller 打包配置（无控制台窗口）
 launch_silent.vbs      # Windows 静默启动脚本
 ```
 
-三个反代核心（`codebuddy2openai` / `monkeycode2openai` / `codearts2openai`）
-以 base64 内嵌在 `BuddyZGateway.py` 中，首次运行自动解包到：
+五个反代核心（`codebuddy2openai` / `monkeycode2openai` / `codearts2openai` /
+`raccoon2openai` / `loomy2openai`）以 base64 内嵌在 `BuddyZGateway.py` 中，
+首次运行自动解包到：
 
 ```
 %LOCALAPPDATA%\BuddyZGateway\runtime\
