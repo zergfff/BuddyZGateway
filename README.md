@@ -8,7 +8,7 @@
 |------|------|----------|------|
 | ① CodeBuddy / WorkBuddy | `copilot.tencent.com` / `codebuddy.ai` | 桌面端 `auth/*.info` | 带原生 function calling / tool_calls |
 | ② MonkeyCode | `ai-models.app.baizhi.cloud` | 桌面端 `config.json` | 支持多 key 号池轮转、今日用量、积分、每日签到 |
-| ③ 华为云 CodeArts（码道） | `snap-access` / `opengw` | 桌面端加密会话 → AK/SK | DPoP 自动续期、余额查询、一键 OAuth 授权 |
+| ③ 华为云 CodeArts（码道） | `snap-access` / `opengw` | 桌面端加密会话 → AK/SK | DPoP 自动续期、余额查询、一键 OAuth 授权、每日福利自动领取 |
 | ④ 商汤小浣熊办公 | `xiaohuanxiong.com` | 桌面端 `auth.json` | 401 自动刷新 token 并落盘 |
 | ⑤ Loomy（讯飞 iModel） | `loomyad.xunfei.cn` | 桌面端会话 / 内嵌 opencode | 12 个模型（`spark-x` 免费，其余按倍率扣积分）、积分查询、原生 tool_calls |
 
@@ -38,7 +38,7 @@ API Key  : 留空
 
 ```bash
 python BuddyZGateway.py --selftest                 # 无界面自检
-python BuddyZGateway.py --serve                    # 无界面三服务（常驻）
+python BuddyZGateway.py --serve                    # 无界面五服务（常驻）
 python BuddyZGateway.py --serve --mc-port 9100     # 自定义端口
 ```
 
@@ -62,17 +62,21 @@ Windows 想彻底去掉控制台黑框，用 `launch_silent.vbs`（内部走 `py
 | MonkeyCode | `GET /v1/wallet` | 积分余额 + 每日 token 额度 |
 | MonkeyCode | `GET/POST /v1/checkin` | 签到状态 / 执行签到（Cap.js PoW 自动求解） |
 | CodeArts | `GET /v1/balance` | 每日 token 额度余额 |
-| CodeArts | `POST /v1/claim` | 每日福利领取 |
+| CodeArts | `POST /v1/claim` | 每日福利领取（幂等，重复调用仍返回成功） |
 | CodeArts | `GET /v1/auth/url` | 生成 OAuth 授权链接 |
+| CodeArts | `GET /v1/auth/status` | 授权状态（ticket 链 / DPoP 链） |
 | CodeArts | `GET /oauth/callback` | OAuth 回调（自动换票并持久化） |
+| 小浣熊 | `GET /v1/balance` | 余额 / 额度 |
 | Loomy | `GET /v1/points` | 积分余额（永久积分 / 每日积分，读 Loomy 本地缓存） |
+
+每个通道都另有 `GET /health`，用于查看运行状态与上游地址。
 
 ---
 
 ## 设计要点
 
 **凭证全部自动探测，不落外部配置**
-桌面端的登录态就是凭证来源。CodeArts 走 DPAPI + AES-GCM 解密桌面端会话库；WorkBuddy 读 `auth/*.info`；MonkeyCode 读 `config.json`。
+桌面端的登录态就是凭证来源。CodeArts 走 DPAPI + AES-GCM 解密桌面端会话库；WorkBuddy 读 `auth/*.info`；MonkeyCode 读 `config.json`；小浣熊读 `~/.box-agent/config/auth.json`；Loomy 读内嵌 opencode 的 provider 配置或本地会话。GUI 每个通道都有一行凭证提示，明确告诉你「凭证是否有效 / 能不能关桌面端 / 什么时候需要重登」。
 
 **MonkeyCode 号池（默认关闭）**
 面板勾选「号池轮转」后，可挂多个透传 key 按序轮转：401/403 判定失效永久跳过，429/5xx 冷却 5 分钟，传输异常冷却 60 秒；本机桌面端 key 永远打底。
@@ -80,6 +84,9 @@ Windows 想彻底去掉控制台黑框，用 `launch_silent.vbs`（内部走 `py
 **CodeArts 两条凭证链**
 - DPoP 链（桌面端同款）：有完整模型路由，`refresh_token` 单次轮转，网关内加文件锁 + 成功后立即落盘，所以不会烧 token。
 - ticket 链（独立 OAuth 授权）：有效期约 24h，负责余额 / 签到；免费模型需配合 `maas_type: benefit` 头才有路由。
+
+**实时额度跟踪**
+后台守护线程按固定间隔拉取 MonkeyCode / CodeArts / Loomy 的额度与积分，界面只读缓存渲染 —— 刷新额度永远不会卡住界面。
 
 **Hermes Agent 集成**
 一键把五条通道写进 Hermes 的 `providers`（含 `.env` 里的占位 key），自动覆盖本机**全部** profile。
@@ -134,4 +141,4 @@ pyinstaller BuddyZGateway.spec
 
 本项目仅用于**本机个人账号**的接口协议转换，方便在自选客户端里使用自己已订阅的服务。
 请遵守各上游平台的服务条款，不要用于账号共享、批量刷取额度等滥用场景。
-使用者需自行承担因使用本工具产生的一切
+使用者需自行承担因使用本工具产生的一切后果。
