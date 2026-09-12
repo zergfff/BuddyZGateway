@@ -7,7 +7,7 @@ rebuild_embed.py — 把 _study/ 下的反代源码重新内嵌回 BuddyZGateway
 而不重新内嵌，等于没改——启动时会被打回原样。
 
 旧的 build_gui.py 是从一份过期 TEMPLATE 整文件重生成，会把你当前 GUI 里
-较新的模块（codearts/raccoon/catpaw/mc_saas 等）全部丢掉。本脚本只做
+较新的模块（codearts/raccoon/loomy/mc_saas 等）全部丢掉，已删除该脚本。本脚本只做
 「就地替换 _EMBEDDED 条目」，不碰 GUI 代码。
 
 用法：

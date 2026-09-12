@@ -68,7 +68,12 @@ def refresh_token_locked() -> dict | None:
         except Exception as e: log(f"[raccoon] refresh: 读 auth 失败 {e}"); return None
         rt = d.get("refresh_token")
         if not rt: return None
-        url = CONFIG["api_base"].rsplit("/v2", 1)[0] + "/api/web/auth/v1/refresh"
+        # api_base 形如 https://host/api/web/llm/v2，而刷新端点是 https://host/api/web/auth/v1/refresh。
+        # 原来用 rsplit("/v2",1)[0] 只砍掉了 "/v2"，留下 "/api/web/llm"，于是拼出
+        # .../api/web/llm/api/web/auth/v1/refresh（/api/web 重复两次）→ 上游 404。
+        # 正确做法是按 "/api/" 取源站前缀。
+        _origin = CONFIG["api_base"].split("/api/", 1)[0]
+        url = _origin + "/api/web/auth/v1/refresh"
         try:
             with httpx.Client(timeout=20) as c:
                 r = c.post(url, json={"refresh_token": rt}, headers={"Content-Type": "application/json"})
