@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import base64
-import difflib
 import re
 import sys
 from pathlib import Path
@@ -71,6 +70,34 @@ def render_entry(key: str, b64: str, indent: str) -> list[str]:
     return out
 
 
+# 这些不内嵌：构建脚本自身、下划线开头的目录（_diag 等）
+SKIP_TOP = {"rebuild_embed.py"}
+
+
+def discover_new(man: dict) -> list:
+    """_study 下「应该内嵌但 manifest 里还没有」的文件（rel 路径）。
+
+    规则与现有清单一致：
+      _study/<模块>/<文件>.py  →  键 "<模块>/<文件>.py"
+      _study/<文件>.py         →  键 "<文件>.py"（放 runtime 根，供各模块共用）
+    没有这步，新加的共用模块永远进不了内嵌清单、rebuild 也刷不进 BuddyZGateway.py。
+    """
+    extra = []
+    for p in sorted(HERE.glob("*.py")):
+        if p.name in SKIP_TOP:
+            continue
+        if p.name not in man:
+            extra.append(p.name)
+    for sub in sorted(HERE.iterdir()):
+        if not sub.is_dir() or sub.name.startswith("_"):
+            continue
+        for p in sorted(sub.glob("*.py")):
+            rel = f"{sub.name}/{p.name}"
+            if rel not in man:
+                extra.append(rel)
+    return extra
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="只报告差异")
@@ -97,6 +124,13 @@ def main() -> int:
         changed.append(key)
         print(f"  * {key}  {len(old)} -> {len(new)} 字节")
 
+    extra = discover_new(man)
+    for key in extra:
+        src = HERE / key
+        print(f"  + {key}  (新增内嵌，{src.stat().st_size} 字节)"
+              if src.is_file() else f"  !! 新增条目源文件缺失：{src}")
+    changed += [k for k in extra if (HERE / k).is_file()]
+
     if not changed:
         print("没有需要更新的条目。")
         return 0
@@ -104,9 +138,6 @@ def main() -> int:
         print(f"[--check] 需要更新 {len(changed)} 个条目，未写入。")
         return 0
 
-    # 从后往前替换，避免行号漂移
-    for key in sorted(man, key=lambda k: 0, reverse=False):
-        pass
     key_order = list(man)
     spans = {}
     # 重新按行扫描定位每条 key 的行区间
@@ -125,6 +156,7 @@ def main() -> int:
             continue
         i += 1
 
+    # ① 先替换既有条目（从后往前，避免行号漂移）
     for key in reversed(key_order):
         src = HERE / key
         if not src.is_file():
@@ -133,6 +165,40 @@ def main() -> int:
         a, b = spans[key]
         indent = lines[a][: len(lines[a]) - len(lines[a].lstrip())]
         lines[a:b] = render_entry(key, b64, indent)
+
+    # ② 再追加新条目（插到 _EMBEDDED 的收尾 } 之前）。
+    #    既有条目的行区间都在 } 之前，所以上一步不会影响这里。
+    if extra:
+        close = None
+        for k in range(start + 1, len(lines)):
+            if lines[k].startswith("}"):
+                close = k
+                break
+        if close is None:
+            raise SystemExit("找不到 _EMBEDDED 的收尾 }")
+
+        def _one_comma(idx):
+            """确保该行以**恰好一个**逗号结尾（chunk 行本来就可能有逗号）。"""
+            s = lines[idx].rstrip()
+            lines[idx] = (s[:-1].rstrip() if s.endswith(",") else s) + ","
+
+        # 收尾 } 之前可能有空行，要往前找到真正的最后一个 chunk 行
+        tail = close - 1
+        while tail > start and not lines[tail].strip():
+            tail -= 1
+        _one_comma(tail)
+
+        indent = "    "
+        for n, key in enumerate(extra):
+            src = HERE / key
+            if not src.is_file():
+                continue
+            b64 = base64.b64encode(src.read_bytes()).decode("ascii")
+            entry = render_entry(key, b64, indent)
+            lines[close:close] = entry
+            close += len(entry)
+            if n < len(extra) - 1:          # 后面还有条目才需要逗号
+                _one_comma(close - 1)
 
     TARGET.write_text(nl.join(lines), encoding="utf-8", newline="")
     print(f"已更新 {len(changed)} 个条目 -> {TARGET}")

@@ -11,7 +11,9 @@
 
   ① mode="ohmyagent"  —— 官方代理（优先）
      凭据：%APPDATA%\\com.chaitin.baizhi.monkeycode\\monkeycode-ohmyagent-key.json
-     端点：https://proxy.monkeycode-ai.com/v1  (oma_ key + omas_ 签名密钥)
+     端点：https://proxy.monkeycode-ai.com/v1（国内）
+           https://proxy.monkeycode-ai.net/v1（国际，同一 GUI 切换）
+           (oma_ key + omas_ 签名密钥)
      协议：OpenAI **Responses** API（/responses），不是 chat/completions，
            且每个请求必须带签名头
              X-Ohmyagent-Signature: v1=HMAC-SHA256(instructions, signing_secret) 的 hex
@@ -36,7 +38,10 @@ import hashlib
 import hmac
 import json
 import os
+import sys
 import time
+import urllib.error
+import urllib.request
 import uuid
 from pathlib import Path
 
@@ -51,12 +56,16 @@ CONFIG = {
     "log_path": None,
     "exposed_models": [],    # 可选模型白名单（空 = 透传全部）
     "pool_enabled": False,   # 号池轮转（默认关）
-    "pool_keys": [],         # 号池 key：[{base_url, api_key, enabled, label}]
+    "pool_keys": [],         # 号池 key：[{base_url, api_key, enabled, label, weight, priority}]
+    "pool_cfg": {},          # 号池调度参数（策略/冷却/重试/粘性，GUI 可改）
     "mode": "static",        # "static"（透传）| "ohmyagent"（官方代理，需签名）
     "signing_secret": "",    # ohmyagent 模式的签名密钥（omas_…）
     "basic_prefix": "monkeycode-basic/",   # 免费基础模型的上游前缀
     "default_model": "",     # 未指定 model 时用
     "model_types": {},       # {上游模型名: "anthropic"|"openai-responses"}，决定走哪套协议
+    # 站点：None/"auto" 跟随桌面端当前登录；"cn" 国内(.com)；"intl" 国际(.net)。
+    # 选 cn/intl 时用 mc_accounts.json 里的站点快照（两版可共存、免重登）。
+    "station": None,
 }
 
 
@@ -85,6 +94,22 @@ def find_desktop_config() -> Path | None:
 def _is_openai_base(url: str) -> bool:
     """base_url 是否为 OpenAI 兼容端点（本模块只讲 OpenAI 协议，必须走这类端点）。"""
     return "/openai" in (url or "").lower()
+
+
+# MonkeyCode 官方代理端点前缀：国内版是 proxy.monkeycode-ai.com，国际版是
+# proxy.monkeycode-ai.net。只认 tld 之外的公共前缀，两版通吃。
+_MC_PROXY_HINT = "proxy.monkeycode-ai"
+
+
+def _is_mc_proxy(url: str) -> bool:
+    """base_url 是否为 MonkeyCode 官方代理端点（国内 .com / 国际 .net 都算）。
+
+    桌面端是同一个 GUI，国际版/国内版在同一目录的 monkeycode-ohmyagent-key.json
+    里只换 base_url 与 server（GUI 切换时重写该文件）。早前这里写死
+    `proxy.monkeycode-ai.com`，导致国际版整张模型协议表为空、所有模型错走
+    /responses → 上游 404「路由不存在」。
+    """
+    return _MC_PROXY_HINT in (url or "").lower()
 
 
 def _load_from_desktop():
@@ -140,7 +165,10 @@ def find_ohmyagent_key() -> dict | None:
     """定位官方代理凭据 monkeycode-ohmyagent-key.json。
 
     形如：{"api_key": "oma_…", "base_url": "https://proxy.monkeycode-ai.com/v1",
-           "signing_secret": "omas_…", ...}
+           "server": "https://monkeycode-ai.com", "signing_secret": "omas_…", ...}
+
+    国际版是同一文件、只换域名：base_url → proxy.monkeycode-ai.net/v1，
+    server → https://monkeycode-ai.net（桌面端 GUI 内切换时重写）。
     """
     app = "com.chaitin.baizhi.monkeycode"
     home = Path.home()
@@ -199,7 +227,7 @@ def _load_model_protocols() -> dict:
     for v in (find_ohmyagent_settings().get("models") or {}).values():
         if not isinstance(v, dict):
             continue
-        if "proxy.monkeycode-ai.com" not in str(v.get("base_url") or ""):
+        if not _is_mc_proxy(str(v.get("base_url") or "")):
             continue
         name, typ = v.get("model"), v.get("type")
         if name and typ:
@@ -681,6 +709,110 @@ async def _ohmyagent_stream(body: dict, model: str):
     yield b"data: [DONE]\n\n"
 
 
+# ---------------------------------------------------------------------------
+# 站点（国内 .com / 国际 .net）：两版共存靠"按站点存快照"
+# ---------------------------------------------------------------------------
+# 桌面端两版**共用同一份** monkeycode-ohmyagent-key.json，切换时重写它的
+# server/base_url。所以同一时刻文件里只有一版凭据 —— 想同时用两版账号，
+# 就得在读到某一版时把凭据**按站点快照**下来，之后靠快照切换，免去来回重登。
+MC_STATION_LABEL = {"cn": "国内", "intl": "国际"}
+
+
+def _accounts_path() -> Path:
+    """站点快照文件（与各模块共享的 data 目录同处）。"""
+    d = os.environ.get("BUDDYZ_DATA_DIR")
+    base = Path(d) if d else (Path(__file__).resolve().parent.parent)
+    return base / "mc_accounts.json"
+
+
+def load_accounts() -> dict:
+    """读站点快照：{"cn": {base_url,api_key,signing_secret,server}, "intl": {...}}"""
+    try:
+        d = json.loads(_accounts_path().read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _station_of(value: str | None) -> str | None:
+    """由域名/URL 判断站点：含 .net → intl，含 .com → cn。"""
+    s = str(value or "")
+    if "monkeycode-ai.net" in s:
+        return "intl"
+    if "monkeycode-ai.com" in s:
+        return "cn"
+    return None
+
+
+def _station_of_entry(entry: dict) -> str | None:
+    """由凭据条目判断站点（server 优先，其次 base_url）。"""
+    for k in ("server", "base_url"):
+        st = _station_of(str(entry.get(k) or ""))
+        if st:
+            return st
+    return None
+
+
+def _station_host(station: str) -> str:
+    """该站点的服务端根域名（mc_saas 未就绪时用内置兜底）。"""
+    try:
+        return _saas().MC_STATION_HOSTS.get(station, "")
+    except Exception:  # noqa: BLE001
+        return {"cn": "https://monkeycode-ai.com",
+                "intl": "https://monkeycode-ai.net"}.get(station, "")
+
+
+def save_account(station: str, entry: dict) -> None:
+    """把当前凭据按站点存一份快照（同一站点重复保存即覆盖）。"""
+    if station not in MC_STATION_LABEL or not (entry.get("api_key") and entry.get("base_url")):
+        return
+    acc = load_accounts()
+    acc[station] = {
+        "base_url": str(entry["base_url"]).rstrip("/"),
+        "api_key": entry["api_key"],
+        "signing_secret": entry.get("signing_secret", ""),
+        # server 可能缺失（老版本文件）→ 用该站点的默认域名补齐
+        "server": entry.get("server") or _station_host(station),
+        "saved_at": time.time(),
+    }
+    try:
+        p = _accounts_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(acc, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:  # noqa: BLE001  快照失败不应影响主流程
+        pass
+
+
+def apply_station(station: str | None, log=print) -> bool:
+    """把 GUI 的「使用版本」作用到 CONFIG（返回是否用上了该站点的快照）。
+
+    "auto"/None → 不动，用桌面端当前登录。
+    "cn"/"intl" → 优先套用该站点的快照；同时同步 mc_saas.STATION，
+                  让钱包/签到也走同一站点（否则会出现"对话走国际、钱包走国内"）。
+    """
+    CONFIG["station"] = station if station in MC_STATION_LABEL else None
+    # 钱包/签到模块同步同一站点
+    try:
+        _saas().STATION = CONFIG["station"]
+    except Exception:  # noqa: BLE001
+        pass
+    if not CONFIG["station"]:
+        return True
+    acc = (load_accounts() or {}).get(CONFIG["station"]) or {}
+    if acc.get("api_key") and acc.get("base_url"):
+        CONFIG["base_url"] = str(acc["base_url"]).rstrip("/")
+        CONFIG["api_key"] = acc["api_key"]
+        CONFIG["signing_secret"] = acc.get("signing_secret", "")
+        CONFIG["model_types"] = _load_model_protocols()
+        log(f"[mc] 使用版本={MC_STATION_LABEL[CONFIG['station']]}（用站点快照）："
+            f"{CONFIG['base_url']}")
+        return True
+    log(f"[mc] 使用版本={MC_STATION_LABEL[CONFIG['station']]}，但**还没有该站点的快照** —— "
+        f"请先在桌面端切到{MC_STATION_LABEL[CONFIG['station']]}版登录一次"
+        f"（网关会自动记下快照），再回来重试")
+    return False
+
+
 def auto_configure(log=print):
     """解析上游：环境变量 > 官方代理（ohmyagent）> 静态 key 透传。"""
     base = os.environ.get("MC2_OPENAI_BASE_URL", "").strip()
@@ -695,6 +827,11 @@ def auto_configure(log=print):
     oma = find_ohmyagent_key()
     if oma:
         CONFIG["mode"] = "ohmyagent"
+        # 先按站点存快照：这样以后在 GUI 里切国内/国际都能直接用，不用回桌面端重登
+        _st = _station_of_entry(oma)
+        if _st:
+            save_account(_st, oma)
+            log(f"[mc] 已记录{MC_STATION_LABEL[_st]}版凭据快照")
         CONFIG["base_url"] = oma["base_url"].rstrip("/")
         CONFIG["api_key"] = oma["api_key"]
         CONFIG["signing_secret"] = oma["signing_secret"]
@@ -763,9 +900,7 @@ def _record_usage(prompt: int, completion: int):
         e["total"] = e["prompt"] + e["completion"]
         e["n"] = int(e.get("n", 0)) + 1
         alld[day] = e
-        # 只保留近 14 天
-        for k in [k for k in alld if k < day][:0]:
-            pass
+        # 只保留最近 14 天（按日期排序取尾部）
         keys = sorted(alld)[-14:]
         alld = {k: alld[k] for k in keys}
         Path(fp).write_text(json.dumps(alld, ensure_ascii=False), encoding="utf-8")
@@ -795,30 +930,157 @@ def _client():
 
 
 # ---------------------------------------------------------------------------
-# 账号池（多组透传 key 故障轮转；默认关闭）
+# 账号池（多组透传 key 调度；默认关闭）
 # ---------------------------------------------------------------------------
+# 选择策略/熔断/冷却/重试/粘性统一交给共用引擎 buddyzpool（与 ca 通道同源）。
+# 池 key 的结构见 CONFIG["pool_keys"]：[{base_url, api_key, enabled, label,
+# weight, priority}]。本机桌面端那条永远在池内（打底）。
 import threading as _th
 
-_POOL = {"idx": 0, "cd": {}}
-_POOL_LOCK = _th.RLock()
+_ENGINE = None
+_ENGINE_LOCK = _th.RLock()
+
+
+def _local_entry():
+    """本机桌面端那条（永远打底）；没登录凭据时为 None。"""
+    if CONFIG.get("base_url") and CONFIG.get("api_key"):
+        return {"base_url": CONFIG["base_url"], "api_key": CONFIG["api_key"],
+                "label": "本机桌面端", "enabled": True, "weight": 1, "priority": 0}
+    return None
+
+
+def _engine_entries():
+    """给引擎的条目视图：本机桌面端 + 全部池 key（enabled 交给引擎判断）。"""
+    ents = []
+    loc = _local_entry()
+    if loc is not None:
+        ents.append(loc)
+    for k in (CONFIG.get("pool_keys") or []):
+        if not isinstance(k, dict):
+            continue
+        if k.get("base_url") and k.get("api_key"):
+            ents.append({"base_url": k["base_url"], "api_key": k["api_key"],
+                         "label": k.get("label") or k["base_url"],
+                         "enabled": bool(k.get("enabled", True)),
+                         "weight": k.get("weight", 1) or 1,
+                         "priority": int(k.get("priority", 0) or 0)})
+    return ents
+
+
+def _pool_engine():
+    """懒建共用调度引擎；配置从 CONFIG['pool_cfg'] 读。"""
+    global _ENGINE
+    with _ENGINE_LOCK:
+        if _ENGINE is None:
+            import importlib
+            from pathlib import Path as _P
+            root = str(_P(__file__).resolve().parent.parent)   # runtime/ 或 _study/
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            try:
+                bzp = importlib.import_module("buddyzpool")
+            except Exception as e:  # noqa: BLE001
+                _log(f"[mc-pool] 调度引擎不可用，退化为顺序轮转: {e}")
+                _ENGINE = False
+            else:
+                _ENGINE = bzp.PoolEngine(
+                    _engine_entries, (CONFIG.get("pool_cfg") or {}),
+                    log=lambda s: _log(s.replace("[pool]", "[mc-pool]")))
+        return _ENGINE or None
+
+
+def pool_config() -> dict:
+    eng = _pool_engine()
+    cfg = eng.config() if eng is not None else {}
+    cfg["saved"] = dict(CONFIG.get("pool_cfg") or {})
+    return cfg
+
+
+def pool_set_config(**kw) -> dict:
+    """改调度参数；由 GUI 落盘到 settings（CONFIG['pool_cfg'] 是运行时值）。"""
+    eng = _pool_engine()
+    clean = {k: v for k, v in kw.items() if v is not None}
+    if eng is not None:
+        eng.set_config(**clean)
+    CONFIG["pool_cfg"] = {**(CONFIG.get("pool_cfg") or {}), **clean}
+    return pool_config()
+
+
+def pool_targets() -> list:
+    """`pool_probe(idx)` 所用的**同一份**条目列表（索引严格对齐）。
+
+    GUI 必须用它来遍历，别自己另列一份：mc 的 index 0 是本机桌面端，
+    另列一份会让下标整体错位、测到错的条目。
+    """
+    return _engine_entries()
+
+
+def pool_action_text(idx: int) -> str:
+    """探测后把引擎对该条目的处置翻成一句人话（供 GUI 展示）。"""
+    eng = _pool_engine()
+    if eng is None:
+        return ""
+    for s in (eng.snapshot() or []):
+        if s.get("idx") != idx:
+            continue
+        if s["state"] == "off":
+            return "已停用（按复检间隔自动恢复）"
+        if s["state"] == "cooling":
+            return f"已冷却 {s['cool_remain']:.0f}s"
+        return "保持可用"
+    return ""
+
+
+def pool_probe(idx: int) -> tuple:
+    """实测第 idx 条：GET {base_url}/models（只读，无副作用）。
+
+    返回 (是否可用, 说明)。key 池用只读探测就够，不像 ca 那样要动令牌。
+    失败时按 manual 走**立即处置**（不等连续失败阈值）。
+    """
+    ents = _engine_entries()
+    if not (0 <= idx < len(ents)):
+        return False, "条目不存在"
+    e = ents[idx]
+    url = (e.get("base_url") or "").rstrip("/") + "/models"
+    req = urllib.request.Request(
+        url, headers={"Authorization": "Bearer " + (e.get("api_key") or "")})
+    t0 = time.time()
+    good, note, status = True, "OK", None
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            good = 200 <= (r.status or 0) < 300
+            note = f"HTTP {r.status}"
+    except urllib.error.HTTPError as ex:
+        good, note, status = False, f"HTTP {ex.code}", ex.code
+    except Exception as ex:  # noqa: BLE001
+        good, note = False, f"{type(ex).__name__}: {str(ex)[:100]}"
+    if good:
+        _pool_ok(idx, latency=time.time() - t0)
+    else:
+        _pool_fail(idx, status=status, manual=True, note=note)
+        note = f"{note} → {pool_action_text(idx)}"
+    return good, note
+
+
+def pool_reset_stats():
+    eng = _pool_engine()
+    if eng is not None:
+        eng.reset_stats()
+
+
+def pool_clear_cooldowns():
+    eng = _pool_engine()
+    if eng is not None:
+        eng.clear_cooldowns()
 
 
 def _pool_entries():
-    """候选 key 列表：本机桌面端打底 + 启用的池 key"""
-    ents = []
-    if CONFIG.get("base_url") and CONFIG.get("api_key"):
-        ents.append({"base_url": CONFIG["base_url"], "api_key": CONFIG["api_key"],
-                     "label": "本机桌面端"})
-    if CONFIG.get("pool_enabled"):
-        for k in (CONFIG.get("pool_keys") or []):
-            if not isinstance(k, dict):
-                continue
-            if not k.get("enabled", True):
-                continue
-            if k.get("base_url") and k.get("api_key"):
-                ents.append({"base_url": k["base_url"], "api_key": k["api_key"],
-                             "label": k.get("label") or k["base_url"]})
-    return ents
+    """候选 key 列表：本机桌面端打底 + 启用且健康的池 key（顺序交给引擎）。
+
+    号池关闭时只返回本机桌面端 —— 与原语义一致（池 key 不参与调度，
+    但 GUI 仍能看到/管理它们）。
+    """
+    return [e for _i, e in _pool_order()]
 
 
 def _client_for(ent):
@@ -829,52 +1091,70 @@ def _client_for(ent):
     )
 
 
-def _pool_order():
-    """健康 key 的轮转顺序（跳过冷却/禁用）；返回 [(idx, entry)]"""
-    ents = _pool_entries()
-    now = time.time()
-    order = []
-    for i, e in enumerate(ents):
-        st = _POOL["cd"].get(i)
-        if st == "off":
-            continue
-        if isinstance(st, (int, float)) and st > now:
-            continue
-        order.append((i, e))
-    if order:
-        k = _POOL["idx"] % len(order)
-        order = order[k:] + order[:k]
-    return order
+def _pool_order(full: bool = False):
+    """健康 key 的尝试顺序；返回 [(idx, entry)]（引擎不可用时退化为原顺序）。
+
+    full=True 用于「列模型」这类发现类调用：不被 max_retries 截断。
+    号池关闭时**只允许本机桌面端**——不能因为兜底逻辑就把池 key 用上。
+    """
+    eng = _pool_engine()
+    if eng is not None:
+        order = eng.order(full=full)
+        if not CONFIG.get("pool_enabled"):
+            order = [(i, e) for i, e in order
+                     if (e.get("label") or "") == "本机桌面端"]
+            if not order and _local_entry() is not None:
+                # 轮转没排到本机那条时也要能用（索引必须对齐 _engine_entries）
+                order = [(0, _local_entry())]
+        return order
+    ents = [e for e in _engine_entries() if e.get("enabled", True)]
+    if not CONFIG.get("pool_enabled"):
+        loc = _local_entry()
+        ents = [loc] if loc is not None else []
+    return list(enumerate(ents))
 
 
-def _pool_fail(i, status=None):
-    with _POOL_LOCK:
-        if status in (401, 403):
-            _POOL["cd"][i] = "off"  # key 失效，不再自动试
-        elif status == 429 or (isinstance(status, int) and status >= 500):
-            _POOL["cd"][i] = time.time() + 300
-        else:  # 传输异常等
-            _POOL["cd"][i] = time.time() + 60
-        _POOL["idx"] += 1
+def _pool_fail(i, status=None, retry_after=None, manual=False, note=""):
+    """失败回馈给引擎（按状态分级冷却 / key 失效转 off / 指数退避）。
+
+    manual=True：显式健康探测失败，立即按规则处置（不等连续失败阈值）。
+    """
+    eng = _pool_engine()
+    if eng is not None:
+        eng.fail(i, status=status, retry_after=retry_after, manual=manual,
+                 note=(note or (f"HTTP {status}" if status else "")))
 
 
-def _pool_ok(i):
-    # 成功也推进轮转下标，负载摊到所有健康 key；顺手清掉旧冷却
-    with _POOL_LOCK:
-        _POOL["cd"].pop(i, None)
-        _POOL["idx"] += 1
+def _pool_ok(i, latency=None):
+    eng = _pool_engine()
+    if eng is not None:
+        eng.ok(i, latency=latency)
 
 
 def _pool_state():
-    now = time.time()
-    out = []
-    for i, e in enumerate(_pool_entries()):
-        st = _POOL["cd"].get(i)
-        out.append({"label": e.get("label") or "",
-                    "key_prefix": (e.get("api_key") or "")[:6],
-                    "cooling": bool(isinstance(st, (int, float)) and st > now),
-                    "off": st == "off"})
-    return {"enabled": bool(CONFIG.get("pool_enabled")), "keys": out}
+    """给 /health 与 GUI 的池状态（含引擎统计）。"""
+    eng = _pool_engine()
+    keys = []
+    summ = {}
+    if eng is not None:
+        ents = _engine_entries()        # 只列一次（原来每个条目各列一次）
+        for s in eng.snapshot():
+            e = ents[s["idx"]] if 0 <= s["idx"] < len(ents) else {}
+            keys.append({"label": s["label"],
+                         "enabled": s["enabled"],
+                         "state": s["state"],
+                         "cooling": s["state"] == "cooling",
+                         "off": s["state"] == "off",
+                         "cool_remain": round(s["cool_remain"], 1),
+                         "inflight": s["inflight"],
+                         "ok": s["ok"], "fail": s["fail"], "consec": s["consec"],
+                         "last_error": s["last_error"],
+                         "latency_ms": s["latency_ms"],
+                         "weight": s["weight"], "priority": s["priority"],
+                         "key_prefix": (e.get("api_key") or "")[:6]})
+        summ = eng.summary()
+    return {"enabled": bool(CONFIG.get("pool_enabled")), "keys": keys, "summary": summ,
+            "strategy": (eng.config().get("strategy") if eng is not None else "")}
 
 
 def _safe_json(resp):
@@ -944,7 +1224,8 @@ async def models(req: Request):
         return JSONResponse(content=body)
 
     last_err = None
-    for i, ent in _pool_order():
+    # 发现类调用：遍历**全部**健康 key，不受 max_retries 截断
+    for i, ent in _pool_order(full=True):
         try:
             async with _client_for(ent) as c:
                 r = await c.get("/models")

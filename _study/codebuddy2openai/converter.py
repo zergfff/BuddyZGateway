@@ -54,12 +54,23 @@ BACKEND = BACKEND_CN
 
 def backend_host(domain: str | None) -> str:
     """按登录账号的 domain 选择后端网关：
-    国际版（workbuddy.ai / codebuddy.ai）→ codebuddy.ai，其余（.cn/tencent.com）→ copilot.tencent.com"""
+    国际版（workbuddy.ai / codebuddy.ai）→ codebuddy.ai，其余（.cn/tencent.com）→ copilot.tencent.com
+
+    注意：**不要**用站点选择去覆盖这里。站点只决定读哪个 auth 文件；后端必须跟随
+    账号自身的 domain，否则会把国际凭据发到国内后端（反之亦然）→ 认证失败。
+    """
     d = domain or ""
     if any(k in d for k in ("workbuddy.ai", "codebuddy.ai")):
         return BACKEND_INTL
     return BACKEND_CN
 USER_AGENT = "codebuddy2openai/2.0"
+
+# 站点 → auth 文件名。国内与国际**同时登录**时各自独立，互不覆盖。
+STATION_AUTH_FILE = {
+    "cn": "workbuddy-desktop.info",          # 国内 www.workbuddy.cn
+    "intl": "workbuddy-desktop-ai.info",     # 国际 www.workbuddy.ai
+}
+STATION_LABEL = {"cn": "国内", "intl": "国际"}
 
 # ---------------------------------------------------------------------------
 # 平台相关：定位 auth 目录
@@ -77,16 +88,53 @@ def auth_dirs() -> list[Path]:
     return [xdg / "CodeBuddyExtension" / "Data" / "Public" / "auth"]
 
 
-def find_auth_file() -> Path | None:
+def find_auth_file(station: str | None = None) -> Path | None:
+    """定位 auth 文件。
+
+    station: None(自动) | "cn" | "intl"
+      · "cn" / "intl" → 精确取该站点的登录文件（两版可同时登录、互不覆盖）
+      · None          → 在两个 canonical 文件里取 mtime 最新的（最近活跃的那个）
+
+    ⚠ 历史坑：原实现是 `sorted(d.glob("*.info"))[0]`，而备份文件
+    `workbuddy-desktop-ai.2026-…Z.9160.<uuid>.info` 因为 `-`(0x2D) < `.`(0x2E)
+    会排在 `workbuddy-desktop.info` **前面** → 选中"已登出账号的旧备份"。
+    所以这里只认两个 canonical 文件名，绝不 glob 排序。
+    """
+    st = station if station is not None else CONFIG.get("station")
     for d in auth_dirs():
-        if d.is_dir():
-            # 优先取"活"的登录文件(不带时间戳后缀)，避免换号后选到旧的备份账号
-            canonical = d / "workbuddy-desktop-ai.info"
-            if canonical.is_file():
-                return canonical
-            for f in sorted(d.glob("*.info")):
-                return f
+        if not d.is_dir():
+            continue
+        if st in STATION_AUTH_FILE:
+            p = d / STATION_AUTH_FILE[st]
+            if p.is_file():
+                return p
+            continue          # 该目录没有这个站点的文件 → 试下一个目录
+        cands = [d / fn for fn in STATION_AUTH_FILE.values() if (d / fn).is_file()]
+        if cands:
+            return max(cands, key=lambda p: p.stat().st_mtime)
     return None
+
+
+def station_of_file(path: Path | None) -> str | None:
+    """由 auth 文件路径反推站点（按文件名）。"""
+    if path is None:
+        return None
+    for st, fn in STATION_AUTH_FILE.items():
+        if path.name == fn:
+            return st
+    return None
+
+
+def list_stations() -> dict:
+    """各站点是否已有登录文件 → {"cn": bool, "intl": bool}（供 GUI 显示可用性）。"""
+    out = {st: False for st in STATION_AUTH_FILE}
+    for d in auth_dirs():
+        if not d.is_dir():
+            continue
+        for st, fn in STATION_AUTH_FILE.items():
+            if (d / fn).is_file():
+                out[st] = True
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +189,8 @@ class CredentialManager:
                 r = c.post(url, headers=headers, json={})
             data = r.json()
         except Exception as e:
-            raise RuntimeError(f"刷新 token 网络失败：{e}")
+            # 原因已在消息里，from None 避免重复堆栈
+            raise RuntimeError(f"刷新 token 网络失败：{e}") from None
         if data.get("code") != 0 or not data.get("data"):
             raise RuntimeError(f"刷新 token 失败：{data.get('msg', data)}")
         new_auth = data["data"]
@@ -195,10 +244,17 @@ class CredentialManager:
         auth = s.get("auth") or {}
         acct = s.get("account") or {}
         exp = auth.get("expiresAt", 0)
+        dom = auth.get("domain") or ""
         return {
             "uid": acct.get("uid"),
             "nickname": acct.get("nickname"),
             "enterpriseName": acct.get("enterpriseName"),
+            "domain": dom,
+            # 站点由**账号 domain** 判定（比文件名可靠），backend 也据此选
+            "station": station_of_file(self.path) or (
+                "intl" if any(k in dom for k in ("workbuddy.ai", "codebuddy.ai")) else "cn"),
+            "backend": self.get_backend(),
+            "auth_file": self.path.name,
             "token_expires_at": exp,
             "token_expired": self._is_expired(),
         }
@@ -348,7 +404,10 @@ PASSTHROUGH_BODY_KEYS = {
 app = FastAPI(title="codebuddy2openai", version="2.0")
 CONFIG: dict = {"api_key": "", "cred": None, "log_path": None,
                 "desensitize": False,
-                "exposed_models": None}  # None → 暴露全部 DEFAULT_MODELS；GUI 可设子集
+                "exposed_models": None,  # None → 暴露全部 DEFAULT_MODELS；GUI 可设子集
+                # 站点：None/"auto" 自动（取最近活跃的登录）；"cn" 国内；"intl" 国际。
+                # 只影响**读哪个 auth 文件**，后端始终跟随账号自身 domain。
+                "station": None}
 
 
 # ---------------------------------------------------------------------------
@@ -398,11 +457,27 @@ def _cred() -> CredentialManager:
     return CONFIG["cred"]
 
 
+def apply_station(station: str | None = None) -> dict:
+    """运行时切换站点：只换凭据对象，不用重启服务。
+
+    station: None/"auto" → 取 mtime 最新的登录文件；"cn"/"intl" → 精确取该站点。
+    返回 summary()，便于 GUI 显示"切过去之后到底是谁在生效"。
+    """
+    CONFIG["station"] = station if station in STATION_AUTH_FILE else None
+    af = find_auth_file()
+    CONFIG["cred"] = CredentialManager(af) if af else None
+    return CONFIG["cred"].summary() if CONFIG["cred"] else {
+        "station": CONFIG["station"], "auth_file": "(未找到)"}
+
+
 @app.get("/health")
 def health():
     cred = CONFIG["cred"]
     info: dict = {"status": "ok", "platform": sys.platform, "python": sys.version.split()[0],
-                  "auth_file": str(find_auth_file() or "(未找到)"), "mode": "direct-proxy (native function calling)"}
+                  "auth_file": str(find_auth_file() or "(未找到)"),
+                  "station_requested": CONFIG.get("station") or "auto",
+                  "stations_available": list_stations(),
+                  "mode": "direct-proxy (native function calling)"}
     if cred is not None:
         try:
             info["credential"] = cred.summary()
@@ -433,11 +508,11 @@ def credits(authorization: Optional[str] = Header(default=None),
         with httpx.Client(timeout=20) as c:
             r = c.post(url, headers=headers, json={})
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=502, detail=f"upstream error: {e}")
+        raise HTTPException(status_code=502, detail=f"upstream error: {e}") from None
     try:
         body = r.json()
     except Exception:
-        raise HTTPException(status_code=502, detail=r.text[:300])
+        raise HTTPException(status_code=502, detail=r.text[:300]) from None
     if body.get("code") != 0:
         raise HTTPException(status_code=502, detail=f"upstream code={body.get('code')} msg={body.get('msg')}")
     data = body.get("data") or {}
@@ -467,7 +542,7 @@ async def chat_completions(request: Request,
     try:
         payload = await request.json()
     except Exception as e:
-        raise HTTPException(status_code=400, detail={"error": {"message": f"bad json: {e}", "type": "invalid_request_error"}})
+        raise HTTPException(status_code=400, detail={"error": {"message": f"bad json: {e}", "type": "invalid_request_error"}}) from None
 
     messages = payload.get("messages") or []
     if not messages:
@@ -525,7 +600,7 @@ async def chat_completions(request: Request,
         raise
     except httpx.HTTPError as e:
         _log(f"[{rid}] ✗ 网络错误 | {model_name} | {e}")
-        raise HTTPException(status_code=502, detail={"error": {"message": f"upstream error: {e}", "type": "upstream_error"}})
+        raise HTTPException(status_code=502, detail={"error": {"message": f"upstream error: {e}", "type": "upstream_error"}}) from None
     _log_finish(model_name, t0, collected, rid)
     return JSONResponse(content=collected)
 
@@ -723,7 +798,7 @@ def _safe_err(r: httpx.Response) -> dict:
 
 def _err_event(msg: bytes, status: int) -> bytes:
     # 以 OpenAI SSE 错误 chunk 形式返回
-    import json as _json, time as _time
+    import json as _json
     chunk = {
         "error": {"message": msg.decode("utf-8", "replace")[:500], "type": "upstream_error", "code": status},
     }
@@ -740,9 +815,16 @@ def preflight() -> bool:
     sys.stderr.write(f"平台      : {sys.platform}\n")
     sys.stderr.write(f"Python    : {sys.version.split()[0]}\n")
     sys.stderr.write(f"后端      : {CONFIG.get('resolved_backend') or BACKEND} (按登录域名自动解析)\n")
+    st_req = CONFIG.get("station") or "auto"
+    avail = list_stations()
+    sys.stderr.write(f"站点选择  : {st_req}"
+                     f"  (可用：国内={'有' if avail.get('cn') else '无'} / "
+                     f"国际={'有' if avail.get('intl') else '无'})\n")
+    for st, fn in STATION_AUTH_FILE.items():
+        p = next((d / fn for d in auth_dirs() if (d / fn).is_file()), None)
+        sys.stderr.write(f"  [{STATION_LABEL[st]}] {fn:<28} "
+                         f"{'✓ ' + str(p) if p else '（未登录）'}\n")
     sys.stderr.write(f"登录文件  : {af or '(未找到)'}\n")
-    if auth_dirs():
-        sys.stderr.write(f"已查目录  : {', '.join(str(d) for d in auth_dirs())}\n")
     ok = True
     if af is None:
         sys.stderr.write("\n[警告] 未找到登录文件。请在桌面端完成登录（CodeBuddy/WorkBuddy）。\n")
@@ -752,6 +834,7 @@ def preflight() -> bool:
             cm = CredentialManager(af)
             info = cm.summary()
             sys.stderr.write(f"账号      : {info.get('nickname')} / {info.get('enterpriseName')}\n")
+            sys.stderr.write(f"站点/后端 : {info.get('station')} → {info.get('backend')}\n")
             sys.stderr.write(f"token过期 : {'是(将自动刷新)' if info['token_expired'] else '否'}\n")
         except Exception as e:
             sys.stderr.write(f"[警告] 读取凭据失败：{e}\n")
@@ -772,11 +855,16 @@ def main():
     ap.add_argument("--desensitize", action="store_true",
                     help="启用脱敏：对 system 消息里的合规模板敏感词（DoS/exploit/credential 等）"
                          "插入零宽空格，缓解被后端内容审核误拦。默认关闭。")
+    ap.add_argument("--station", choices=("auto", "cn", "intl"), default="auto",
+                    help="用哪个站点的登录凭据：auto=最近活跃 / cn=国内(workbuddy.cn) / "
+                         "intl=国际(workbuddy.ai)。两版可同时登录，互不覆盖。")
     ap.add_argument("--skip-check", action="store_true", help="跳过启动预检")
     args = ap.parse_args()
 
     CONFIG["api_key"] = args.api_key
     CONFIG["desensitize"] = args.desensitize
+    # None → find_auth_file() 自动取最近活跃的那个
+    CONFIG["station"] = None if args.station == "auto" else args.station
     # --log 直接指定文件路径即开启；不传则不记
     CONFIG["log_path"] = args.log if args.log else os.environ.get("CODEBUDDY2OPENAI_LOG")
     af = find_auth_file()
@@ -803,7 +891,7 @@ def main():
     sys.stderr.write("按 Ctrl+C 退出。\n\n")
 
     # 启动时写一条标记
-    _log(f"==== converter 启动 ====")
+    _log("==== converter 启动 ====")
 
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 

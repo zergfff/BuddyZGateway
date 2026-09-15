@@ -6,7 +6,7 @@ Reads auth from ~/.box-agent/config/auth.json (access_token + refresh_token).
 - 401 on upstream triggers one-shot token refresh, then retry.
 """
 from __future__ import annotations
-import argparse, json, os, sys, threading, time
+import argparse, json, os, threading, time
 from pathlib import Path
 from typing import Any
 import httpx
@@ -20,6 +20,7 @@ CONFIG: dict[str, Any] = {
     "exposed_models": [],
     "log_path": None,
     "timeout": 120,
+    "local_api_key": "",     # 可选：本地客户端鉴权（不设置则不校验）
 }
 DEFAULT_MODELS = ["raccoon-8c4485", "sn-sensenova-6-8-flash-lite", "sn-glm-5-3", "sn-glm-5-3-flash", "sn-kimi-k3", "sn-deepseek-v4-pro"]
 # 兜底名单 = 最后已知的线上模型名称：仅 catalog 拉取失败时使用，平时一律以上游 catalog 为准
@@ -176,7 +177,8 @@ def _filter_exposed(models: list[dict]) -> list[dict]:
     except Exception: mp = {}
     return [m for m in models if m["id"] in eset or mp.get(m["id"]) in eset]
 
-def _do_chat(body: dict, stream: bool, timeout: int):
+def _chat_prep(body: dict, stream: bool):
+    """构造 (url, headers, payload)。**不做 IO**（401 重试由调用方处理）。"""
     tok = _get_token()
     url = CONFIG["api_base"] + "/chat/completions"
     headers = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json",
@@ -186,16 +188,36 @@ def _do_chat(body: dict, stream: bool, timeout: int):
     internal = resolve_model(req_model) or req_model
     if exp and req_model and req_model not in exp and internal not in exp:
         raise HTTPException(status_code=404, detail=f"模型 {req_model} 未暴露（当前暴露：{exp}）")
-    body = dict(body)
+    payload = dict(body)
     if internal:
-        body["model"] = internal  # 显示名回写为上游内部名
+        payload["model"] = internal  # 显示名回写为上游内部名
+    return url, headers, payload
+
+
+def _do_chat(body: dict, stream: bool, timeout: int):
+    """非流式请求（同步）。**调用方必须放到线程里跑**，否则会卡住事件循环。"""
+    url, headers, payload = _chat_prep(body, False)
     with httpx.Client(timeout=timeout, headers=headers) as c:
-        r = c.post(url, json=body)
+        r = c.post(url, json=payload)
         if r.status_code == 401:
             if refresh_token_locked():
                 c.headers["Authorization"] = f"Bearer {_get_token()}"
-                r = c.post(url, json=body)
+                r = c.post(url, json=payload)
         return r.status_code, r
+
+def _check_local_auth(req: Request) -> bool:
+    """若设置了 local_api_key，校验客户端 Bearer；返回是否放行。"""
+    key = CONFIG.get("local_api_key") or ""
+    if not key:
+        return True
+    auth = req.headers.get("Authorization", "")
+    return auth.startswith("Bearer ") and auth[len("Bearer "):].strip() == key
+
+
+def _unauthorized():
+    return JSONResponse({"error": {"message": "invalid API key", "type": "auth_error"}},
+                        status_code=401)
+
 
 app = FastAPI(title="raccoon2openai", version="1.0.0")
 
@@ -204,14 +226,18 @@ def root():
     return {"service": "raccoon2openai", "upstream": CONFIG["api_base"], "version": "1.0.0"}
 
 @app.get("/v1/models")
-def models_route():
+def models_route(request: Request):
+    if not _check_local_auth(request):
+        return _unauthorized()
     try: return {"object": "list", "data": _filter_exposed(list_models())}
     except Exception as e:
         log(f"[raccoon] /v1/models 失败：{e}")
         return {"object": "list", "data": _filter_exposed(_to_openai(DEFAULT_MODELS))}
 
 @app.get("/v1/balance")
-def balance_route():
+def balance_route(request: Request):
+    if not _check_local_auth(request):
+        return _unauthorized()
     try:
         tok = _get_token()
         return {"ok": True, "auth": True, "token_len": len(tok), "auth_path": str(_auth_path()),
@@ -221,26 +247,80 @@ def balance_route():
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
+    if not _check_local_auth(request):
+        return _unauthorized()
     try: body = await request.json()
-    except Exception: raise HTTPException(status_code=400, detail="body 必须是 JSON")
+    except Exception: raise HTTPException(status_code=400, detail="body 必须是 JSON") from None
     stream = bool(body.get("stream"))
+    import asyncio as _aio
+
+    if stream:
+        # 真正的增量透传。
+        # 之前是「整体读完之后逐行吐出」——上游没开 stream=True，响应被 httpx
+        # 全量缓冲，客户端在整段生成完之前收不到任何字节（看着像卡死）。
+        url, headers, payload = _chat_prep(body, True)
+        loop = _aio.get_running_loop()
+        q: _aio.Queue = _aio.Queue()
+
+        def _push(item):
+            # asyncio.Queue 不是线程安全的，必须经 loop 线程安全投递
+            loop.call_soon_threadsafe(q.put_nowait, item)
+
+        def _worker():
+            c = httpx.Client(timeout=CONFIG["timeout"], headers=headers)
+            try:
+                r = c.send(c.build_request("POST", url, json=payload), stream=True)
+                if r.status_code == 401 and refresh_token_locked():
+                    r.close()
+                    h2 = dict(headers)
+                    h2["Authorization"] = f"Bearer {_get_token()}"
+                    r = c.send(c.build_request("POST", url, json=payload,
+                                               headers=h2), stream=True)
+                if r.status_code != 200:
+                    _push({"err": f"upstream {r.status_code}: "
+                                   f"{r.read().decode('utf-8', 'replace')[:400]}"})
+                else:
+                    for chunk in r.iter_bytes():
+                        if chunk:
+                            _push({"chunk": chunk})
+            except Exception as e:  # noqa: BLE001
+                log(f"[raccoon] 上游流式异常：{e}")
+                _push({"err": str(e)})
+            finally:
+                try:
+                    c.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                _push(None)
+
+        async def gen():
+            import threading as _th
+            _th.Thread(target=_worker, daemon=True).start()
+            while True:
+                item = await q.get()
+                if item is None:
+                    break
+                if "err" in item:
+                    yield (b"data: " + json.dumps(
+                        {"error": {"message": item["err"], "type": "upstream_error"}},
+                        ensure_ascii=False).encode("utf-8") + b"\n\n")
+                    break
+                yield item["chunk"]
+            yield b"data: [DONE]\n\n"
+
+        return StreamingResponse(gen(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache",
+                                          "Connection": "keep-alive",
+                                          "X-Accel-Buffering": "no"})
+
     try:
-        status, r = _do_chat(body, stream=stream, timeout=CONFIG["timeout"])
+        # 同步 httpx 放线程：直接在 async 里跑会把事件循环卡住整段上游耗时
+        status, r = await _aio.to_thread(_do_chat, body, False, CONFIG["timeout"])
     except HTTPException: raise
     except Exception as e:
         log(f"[raccoon] chat 上游异常：{e}")
         return JSONResponse({"error": str(e), "type": "upstream_error"}, status_code=502)
     if status == 200:
-        if stream:
-            # Read the whole response and re-stream line-by-line
-            raw = r.read().decode("utf-8", "replace")
-            def gen():
-                for line in raw.splitlines():
-                    if line.strip():
-                        yield line + "\n\n"
-            return StreamingResponse(gen(), media_type="text/event-stream",
-                                     headers={"Cache-Control": "no-cache", "Connection": "keep-alive",
-                                              "X-Accel-Buffering": "no"})
         try: data = r.json()
         except Exception as e:
             txt = r.text[:400]

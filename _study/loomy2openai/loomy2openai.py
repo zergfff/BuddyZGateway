@@ -292,10 +292,23 @@ async def chat_completions(req: Request):
     headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json"}
 
     if not stream:
-        try:
+        import asyncio as _aio
+
+        def _sync_post():
+            # 同步 httpx 必须放线程：直接在 async 里调用会把事件循环卡住
+            # 整段上游耗时（timeout=900），其间该服务的所有其它请求都被堵。
             with httpx.Client(timeout=900) as c:
-                r = c.post(url, json=payload, headers=headers)
-            return JSONResponse(content=r.json(), status_code=r.status_code)
+                rr = c.post(url, json=payload, headers=headers)
+                txt = rr.text
+            try:
+                return rr.status_code, json.loads(txt)
+            except Exception:  # noqa: BLE001
+                return rr.status_code, {"error": {"message": txt[:500],
+                                                  "type": "upstream_error"}}
+
+        try:
+            status, data = await _aio.to_thread(_sync_post)
+            return JSONResponse(content=data, status_code=status)
         except httpx.HTTPError as e:
             return JSONResponse({"error": {"message": f"upstream error: {e}", "type": "upstream_error"}},
                                 status_code=502)

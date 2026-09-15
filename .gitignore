@@ -28,9 +28,16 @@ credentials.json
 cookies*.json
 *_cookies.json
 
+# 诊断/临时工具（不入库）
+_study/_diag/yb_cookies.py
+
 # 编辑器 / 系统
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 nul
+
+# IDE
+.vscode/
+.idea/

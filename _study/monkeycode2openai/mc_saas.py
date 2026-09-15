@@ -14,7 +14,17 @@ from pathlib import Path
 
 import httpx
 
-BASE_API = "https://monkeycode-ai.com"
+# 默认站点；实际以桌面端当前登录的版本为准（国内 monkeycode-ai.com /
+# 国际 monkeycode-ai.net），由 current_base_api() 每次请求前解析。
+DEFAULT_BASE_API = "https://monkeycode-ai.com"
+BASE_API = DEFAULT_BASE_API
+
+# 站点 → 服务端根域名。桌面端两版共用同一份配置文件，只换域名。
+MC_STATION_HOSTS = {"cn": "https://monkeycode-ai.com",
+                    "intl": "https://monkeycode-ai.net"}
+# 由主模块按 GUI 的「使用版本」同步过来：None=自动(读文件) / "cn" / "intl"
+STATION: str | None = None
+
 EP_WALLET = "/api/v1/users/wallet"
 EP_CHECKIN = "/api/v1/users/wallet/checkin"
 EP_CAPTCHA_CHALLENGE = "/api/v1/public/captcha/challenge"
@@ -24,6 +34,43 @@ _UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
 FNV_OFFSET32 = 2166136261
 FNV_MASK = 0xFFFFFFFF
+
+
+def station_of(value: str | None) -> str | None:
+    """由 server/base_url 判断站点：含 .net → intl，含 .com → cn。"""
+    s = str(value or "")
+    if "monkeycode-ai.net" in s:
+        return "intl"
+    if "monkeycode-ai.com" in s:
+        return "cn"
+    return None
+
+
+def current_base_api() -> str:
+    """当前活动站点：国际版 https://monkeycode-ai.net / 国内版 https://monkeycode-ai.com。
+
+    优先级：
+      1. `STATION` 显式指定（GUI 的「使用版本」选 国内/国际）→ 强制用该站点；
+      2. 否则跟随桌面端 monkeycode-ohmyagent-key.json 的 server 字段
+         （切换版本时桌面端会重写该文件）——写死 .com 会让国际版账号查钱包/签到全挂；
+      3. 都读不到时回退 DEFAULT_BASE_API。
+    """
+    if STATION in MC_STATION_HOSTS:
+        return MC_STATION_HOSTS[STATION]
+    home = Path.home()
+    for base in (os.environ.get("APPDATA"), home / "AppData" / "Roaming"):
+        if not base:
+            continue
+        p = Path(base) / "com.chaitin.baizhi.monkeycode" / "monkeycode-ohmyagent-key.json"
+        if not p.is_file():
+            continue
+        try:
+            s = (json.loads(p.read_text(encoding="utf-8")) or {}).get("server")
+        except Exception:
+            continue
+        if s:
+            return str(s).rstrip("/")
+    return DEFAULT_BASE_API
 
 
 def _fnv1a(s):
@@ -87,20 +134,21 @@ def _req(method: str, path: str, body=None):
     cookies = load_session_cookies()
     if not cookies:
         raise RuntimeError("no monkeycode session (monkeycode-cookies.json 缺失或为空)")
-    headers = {"User-Agent": _UA, "Referer": BASE_API + "/",
+    base = current_base_api()
+    headers = {"User-Agent": _UA, "Referer": base + "/",
                "Accept": "application/json",
                "Cookie": "; ".join(f"{k}={v}" for k, v in cookies.items() if v)}
     if body is not None:
         headers["Content-Type"] = "application/json"
     with httpx.Client(timeout=httpx.Timeout(60.0, connect=15.0),
                       follow_redirects=True) as c:
-        r = c.request(method, BASE_API + path, json=body, headers=headers)
+        r = c.request(method, base + path, json=body, headers=headers)
     if r.status_code in (401, 403):
         raise RuntimeError(f"session 无效（{r.status_code}，请重登 MonkeyCode 桌面端）")
     try:
         obj = r.json()
     except Exception:
-        raise RuntimeError(f"上游返回非 JSON（{r.status_code}）")
+        raise RuntimeError(f"上游返回非 JSON（{r.status_code}）") from None
     if isinstance(obj, dict) and "code" in obj:
         if obj.get("code") != 0:
             raise RuntimeError(f"upstream code={obj.get('code')} msg={obj.get('message', '')}")

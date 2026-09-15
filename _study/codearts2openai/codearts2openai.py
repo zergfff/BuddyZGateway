@@ -21,8 +21,12 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
+import sys
+import threading as _th
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
@@ -36,6 +40,7 @@ CONFIG = {
     "log_path": None,
     "exposed_models": [],
     "port": 9100,  # 服务端口（OAuth 回调地址用它）
+    "pool_enabled": False,  # 号池轮转（默认关；每个池条目是一套独立 DPoP 会话）
 }
 
 _OAUTH_PENDING: dict = {}
@@ -114,9 +119,26 @@ DEFAULT_MODELS = ["glm-5.2", "deepseek-v4-flash-0731",
                   "deepseek-v4-pro-0813", "glm-5.3-flash"]
 CLIENT_ID = "codearts-agent"
 STS = "https://sts.cn-north-4.myhuaweicloud.com/v1/oauth2/tokens"
-SNAP = "https://snap-access.cn-north-4.myhuaweicloud.com"
+# STS 国内外同站（插件 product.json 里 iamStsOpenDomain 两版一致），只有对话域按站点切。
+# 余额/福利走 OPENGW，生产环境国内外也一致（插件里按 isGammaVersion 分流，
+# 生产分支两站都是 opengw.developer.huaweicloud.com）。
+SNAP_CN = "https://snap-access.cn-north-4.myhuaweicloud.com"
+SNAP_INTL = "https://snap-access.ap-southeast-1.myhuaweicloud.com"
+SNAP = SNAP_CN  # 兼容别名：历史代码直接引用的兜底（实际请走 _snap()）
 OPENGW = "https://opengw.developer.huaweicloud.com"
+PORTAL_CN = "https://codearts.huaweicloud.com"
+PORTAL_INTL = "https://codearts.ap-southeast-1.huaweicloud.com"
 APP_VERSION = "26.8.300"
+
+
+def _snap(station: str | None = None) -> str:
+    """本站点的对话域。station: china | international，缺省读当前判定。"""
+    return SNAP_INTL if (station or _current_station()) == "international" else SNAP_CN
+
+
+def _portal(station: str | None = None) -> str:
+    """本站点的授权 portal。"""
+    return PORTAL_INTL if (station or _current_station()) == "international" else PORTAL_CN
 
 
 def _log(line: str):
@@ -167,44 +189,220 @@ def _save_state(st: dict):
         pass
 
 
-def _bootstrap_from_desktop() -> dict | None:
-    """从桌面端 secret 解出 loginContext（DPoP 密钥/PKCE/refresh_token）。只返回，不落盘（由调用方合并保存）。"""
+# ---------------------------------------------------------------------------
+# 登录会话来源
+# ---------------------------------------------------------------------------
+# 两处登录留下的东西是同一套（Chromium v10：Local State 里的 DPAPI 密钥 +
+# SQLite ItemTable 里被保护的 secret），解密方式完全一样：
+#   · CodeArts Agent 桌面端   %APPDATA%\codearts-agent\
+#   · VS Code 插件            %APPDATA%\<Code|...>\User\globalStorage\
+# 两者登录的是同一个华为云账号，凭证可互换，所以都要扫。
+
+# VS Code 系 userData 目录名（装的是插件 huaweicloud.vscode-codebot）
+_VSCODE_USERDATA_DIRS = ("Code", "Code - Insiders", "VSCodium", "Code - OSS")
+_VSCODE_EXT_ID = "huaweicloud.vscode-codebot"
+_VSCODE_SECRET_KEY = "SYSTEM_HC_USER_INFO"
+
+
+def _session_stores() -> list[dict]:
+    """候选凭证库 [{label, local_state, vscdb, match}]，按库文件新→旧排序。
+
+    match:
+      "any"     桌面端 —— 该库里只有 CodeArts 自己的 secret，取第一条即可
+      "codebot" VS Code —— state.vscdb 被**所有扩展共用**，必须按插件 ID 精确
+                匹配，否则会拿到别的扩展的 secret
+    """
+    appdata = Path(os.environ.get("APPDATA") or (Path.home() / "AppData" / "Roaming"))
+    cands: list[dict] = []
+
+    d = appdata / "codearts-agent"
+    if (d / "User" / "globalStorage" / "state.vscdb").is_file():
+        cands.append({"label": "CodeArts 桌面端",
+                      "local_state": d / "Local State",
+                      "vscdb": d / "User" / "globalStorage" / "state.vscdb",
+                      "match": "any"})
+
+    for name in _VSCODE_USERDATA_DIRS:
+        u = appdata / name
+        db = u / "User" / "globalStorage" / "state.vscdb"
+        if db.is_file():
+            cands.append({"label": f"VS Code 插件（{name}）",
+                          "local_state": u / "Local State",
+                          "vscdb": db, "match": "codebot"})
+
+    def _mtime(c: dict) -> float:
+        try:
+            return c["vscdb"].stat().st_mtime
+        except OSError:
+            return 0.0
+
+    cands.sort(key=_mtime, reverse=True)
+    return cands
+
+
+def _store_station(store: dict) -> str:
+    """该凭证库当前登录的站点：china | international。
+
+    VS Code 插件把站点存在同一库 globalState 的 LOGIN_STATION_KEY 里
+    （用户在插件内切换国内外，插件重写这个值）；桌面端是国内客户端，
+    直接判 china。读不到一律回退 china。
+    """
+    if store.get("match") != "codebot":
+        return "china"
+    import sqlite3
+    try:
+        con = sqlite3.connect("file:" + str(store["vscdb"]) + "?mode=ro",
+                              uri=True, timeout=5)
+        try:
+            row = con.execute(
+                "select value from ItemTable where key='HuaweiCloud.vscode-codebot'"
+            ).fetchone()
+        finally:
+            con.close()
+        if row and row[0]:
+            j = json.loads(row[0])
+            if isinstance(j, dict) and j.get("LOGIN_STATION_KEY") == "international":
+                return "international"
+    except Exception:
+        pass
+    return "china"
+
+
+def _current_station() -> str:
+    """当前站点：china | international。
+
+    优先级：
+      1. CONFIG["station"] 显式指定（GUI 的「使用版本」选 国内/国际）—— **强制**用它，
+         让国内/国际账号各走各的端点（portal / snap / STS 全套跟着切），互不干扰。
+      2. 否则自动：取 mtime 最新的那个凭证库的判定。
+         用户在插件内切站 → 插件重写 LOGIN_STATION_KEY + vscdb mtime 更新 →
+         这里下次调用即跟随，不用重启网关。桌面端是国内客户端，判 china。
+      3. 无任何凭证库时回退 china。
+    """
+    forced = CONFIG.get("station")
+    if forced in ("cn", "china"):
+        return "china"
+    if forced in ("intl", "international"):
+        return "international"
+    best, best_mtime = "china", -1.0
+    for s in _session_stores():
+        try:
+            mt = Path(s["vscdb"]).stat().st_mtime
+        except OSError:
+            continue
+        if mt >= best_mtime:
+            best_mtime = mt
+            best = _store_station(s)
+    return best
+
+
+def _secret_value(vscdb: Path, match: str) -> str | None:
+    """从 state.vscdb 里取登录 secret 原文。
+
+    VS Code 的 secret key 形如
+      secret://{"extensionId":"huaweicloud.vscode-codebot","key":"SYSTEM_HC_USER_INFO"}
+    必须精确匹配插件 ID —— 这个库是所有扩展共用的。
+    """
+    import sqlite3
+    exact = "secret://" + json.dumps(
+        {"extensionId": _VSCODE_EXT_ID, "key": _VSCODE_SECRET_KEY},
+        separators=(",", ":"))
+    con = sqlite3.connect("file:" + str(vscdb) + "?mode=ro", uri=True, timeout=5)
+    try:
+        if match == "codebot":
+            row = con.execute("select value from ItemTable where key=?", (exact,)).fetchone()
+            if not row or not row[0]:
+                # key 名可能随插件版本改动，退化为按插件 ID 模糊匹配
+                row = con.execute(
+                    "select value from ItemTable where key like 'secret://%' "
+                    "and key like ? order by rowid limit 1",
+                    (f"%{_VSCODE_EXT_ID}%",)).fetchone()
+        else:
+            row = con.execute(
+                "select value from ItemTable where key like 'secret://%' "
+                "order by rowid limit 1").fetchone()
+        return row[0] if row and row[0] else None
+    finally:
+        con.close()
+
+
+def _read_store_session(store: dict) -> dict | None:
+    """解出某个凭证库里的登录会话（DPoP 密钥 + refresh_token + 直连临时凭证）。"""
     try:
         import win32crypt
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     except ImportError:
         return None
     try:
-        appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
-        ls = json.loads((Path(appdata) / "codearts-agent" / "Local State").read_text(encoding="utf-8"))
+        ls = json.loads(Path(store["local_state"]).read_text(encoding="utf-8"))
         key = win32crypt.CryptUnprotectData(
             base64.b64decode(ls["os_crypt"]["encrypted_key"])[5:], None, None, None, 0)[1]
-        import sqlite3
-        con = sqlite3.connect(
-            "file:" + str(Path(appdata) / "codearts-agent" / "User" / "globalStorage" /
-                          "state.vscdb") + "?mode=ro",
-            uri=True, timeout=5)
-        try:
-            row = con.execute(
-                "select value from ItemTable where key like 'secret://%'").fetchone()
-        finally:
-            con.close()
-        if not row or not row[0]:
-            _log("[ca] 桌面端未找到登录会话（secret 条目为空）——需打开 CodeArts 登录一次")
+        raw_s = _secret_value(Path(store["vscdb"]), store["match"])
+        if not raw_s:
+            _log(f"[ca] {store['label']} 未找到登录会话（secret 条目为空）——需登录一次")
             return None
-        raw = bytes(json.loads(row[0])["data"])
+        raw = bytes(json.loads(raw_s)["data"])
+        if raw[:3] != b"v10":
+            _log(f"[ca] {store['label']} secret 非 v10 格式，跳过")
+            return None
         sess = json.loads(AESGCM(key).decrypt(raw[3:15], raw[15:], None))
         lc = sess.get("loginContext") or {}
         st = {"refresh_token": sess.get("refresh_token", ""),
               "dpop_priv": (lc.get("dpopKeyPair") or {}).get("privateKeyJwk"),
               "dpop_pub": (lc.get("dpopKeyPair") or {}).get("publicKeyJwk"),
-              "verifier": (lc.get("pkcePair") or {}).get("codeVerifier", "")}
+              "verifier": (lc.get("pkcePair") or {}).get("codeVerifier", ""),
+              # 登录时签发的直连临时凭证：AK/SK + 安全令牌，**无需轮转**即可
+              # 签名直调 opengw（桌面端那张表里没有，插件登录才有）
+              "access_key_id": sess.get("accessKeyId", ""),
+              "secret_access_key": sess.get("secretAccessKey", ""),
+              "security_token": sess.get("accessToken", ""),
+              "expires_at": sess.get("expiresAt", ""),
+              "login_name": sess.get("name", ""),
+              "source": store["label"],
+              "station": _store_station(store)}
         if st["refresh_token"] and st["dpop_priv"]:
             return st
-        _log("[ca] 桌面端会话缺少 refresh_token/DPoP 密钥——需重新登录桌面端")
+        _log(f"[ca] {store['label']} 会话缺少 refresh_token/DPoP 密钥——需重新登录")
     except Exception as e:  # noqa: BLE001
-        _log(f"[ca] 桌面端会话读取失败: {e}")
+        _log(f"[ca] {store['label']} 会话读取失败: {e}")
     return None
+
+
+def _bootstrap_all() -> list:
+    """所有可用凭证库解出的会话 [(label, session)]，按库文件新→旧。"""
+    out = []
+    for store in _session_stores():
+        sess = _read_store_session(store)
+        if sess:
+            out.append((store["label"], sess))
+    return out
+
+
+# 凭证库读取有成本：DPAPI 解密 + 两次 sqlite 打开（secret + station），
+# 而免费模型走 ticket 链，**每个请求**都会读一次。加个短 TTL 缓存：
+# 突发流量只读一遍，用户刚登录也能在几秒内被发现。
+_STORE_CACHE = {"ts": 0.0, "items": []}
+_STORE_TTL = float(os.environ.get("BUDDYZ_STORE_TTL") or 5.0)
+
+
+def _bootstrap_all_cached() -> list:
+    now = time.time()
+    if _STORE_CACHE["items"] and now - _STORE_CACHE["ts"] < _STORE_TTL:
+        return _STORE_CACHE["items"]
+    items = _bootstrap_all()
+    _STORE_CACHE["ts"] = now
+    _STORE_CACHE["items"] = items
+    return items
+
+
+def _bootstrap_from_desktop() -> dict | None:
+    """兼容入口：返回最新那个凭证库的会话。
+
+    历史上只认 CodeArts 桌面端；现在同时认桌面端与 VS Code 插件
+    （huaweicloud.vscode-codebot）——同一华为云账号，凭证可互换。
+    """
+    all_sess = _bootstrap_all_cached()
+    return all_sess[0][1] if all_sess else None
 
 
 def _b64u(b: bytes) -> str:
@@ -237,8 +435,17 @@ def _need_refresh(cred: dict) -> bool:
         return True
 
 
+_LOCK_LOCAL = _th.local()   # 线程本地：标记本线程是否已持 state 锁（可重入用）
+
+
 def _locked_state_update(fn):
-    """独立 lock 文件加锁（Windows 文件锁是强制性的，不能锁 state 文件本身）。"""
+    """独立 lock 文件加锁（Windows 文件锁是强制性的，不能锁 state 文件本身）。
+
+    **必须可重入**：`ensure_creds()` 已经持锁，池路径里的 `_pool_save_back()`
+    还会再调一次本函数。msvcrt.LK_LOCK 是阻塞式的，同一进程对同一文件区域
+    二次加锁会自己等自己 → 永久挂死（现象：开了号池就不回复）。
+    这里用线程本地计数标记「本线程是否已持锁」，已持锁就直接执行。
+    """
     try:
         import msvcrt
     except ImportError:
@@ -246,20 +453,26 @@ def _locked_state_update(fn):
     fp = _state_file()
     if fp is None:
         return fn()
-    fp.parent.mkdir(parents=True, exist_ok=True)
-    lockf = fp.parent / (fp.name + ".lock")
-    with open(str(lockf), "a+b") as f:
-        try:
-            msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
-        except OSError:
-            pass
-        try:
-            return fn()
-        finally:
+    if getattr(_LOCK_LOCAL, "depth", 0) > 0:
+        return fn()               # 同线程重入：直接跑，避免自死锁
+    _LOCK_LOCAL.depth = 1
+    try:
+        fp.parent.mkdir(parents=True, exist_ok=True)
+        lockf = fp.parent / (fp.name + ".lock")
+        with open(str(lockf), "a+b") as f:
             try:
-                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+                msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
             except OSError:
                 pass
+            try:
+                return fn()
+            finally:
+                try:
+                    msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+                except OSError:
+                    pass
+    finally:
+        _LOCK_LOCAL.depth = 0
 
 
 def _do_refresh(st: dict):
@@ -278,31 +491,37 @@ def _do_refresh(st: dict):
 
 
 def _dpop_candidates() -> list:
-    """DPoP 候选链：data state > Temp 轮转文件+桌面端密钥 > 桌面端整批。"""
+    """DPoP 候选链：data state > Temp 轮转文件+凭证库密钥 > 各凭证库整批。
+
+    「各凭证库」= CodeArts 桌面端 / VS Code 插件，每个库各作一个候选：
+    某个库的 refresh_token 被轮转过（单次有效）时自动换下一个试。
+    """
     cands = []
     st = _load_state()
     if st.get("refresh_token") and st.get("dpop_priv"):
         cands.append({"refresh_token": st["refresh_token"], "dpop_priv": st["dpop_priv"],
                       "dpop_pub": st["dpop_pub"], "verifier": st.get("verifier", ""),
                       "save_to": "data", "label": "data-state"})
-    # Temp 轮转文件（token） + 桌面端 loginContext（密钥）
+    stores = _bootstrap_all_cached()
+    # Temp 轮转文件（token） + 最新凭证库 loginContext（密钥）
     try:
         tmp = Path(os.environ.get("LOCALAPPDATA", "")) / "Temp" / "ca_state.json"
         if tmp.is_file():
             tj = json.loads(tmp.read_text(encoding="utf-8"))
-            if tj.get("refresh_token"):
-                desk = _bootstrap_from_desktop() or {}
+            if tj.get("refresh_token") and stores:
+                label0, s0 = stores[0]
                 cands.append({"refresh_token": tj["refresh_token"],
-                              "dpop_priv": desk.get("dpop_priv"), "dpop_pub": desk.get("dpop_pub"),
-                              "verifier": desk.get("verifier", ""),
-                              "save_to": "data", "label": "temp+desktop-keys"})
+                              "dpop_priv": s0.get("dpop_priv"), "dpop_pub": s0.get("dpop_pub"),
+                              "verifier": s0.get("verifier", ""),
+                              "save_to": "data", "label": "temp+" + label0})
     except Exception:
         pass
-    desk = _bootstrap_from_desktop() or {}
-    if desk.get("refresh_token") and desk.get("dpop_priv"):
-        cands.append({"refresh_token": desk["refresh_token"], "dpop_priv": desk["dpop_priv"],
-                      "dpop_pub": desk["dpop_pub"], "verifier": desk.get("verifier", ""),
-                      "save_to": "data", "label": "desktop-file"})
+    for label, sess in stores:
+        if sess.get("refresh_token") and sess.get("dpop_priv"):
+            cands.append({"refresh_token": sess["refresh_token"],
+                          "dpop_priv": sess["dpop_priv"], "dpop_pub": sess["dpop_pub"],
+                          "verifier": sess.get("verifier", ""),
+                          "save_to": "data", "label": label})
     # 去重（同一 token 只试一次）
     seen, out = set(), []
     for c in cands:
@@ -310,6 +529,388 @@ def _dpop_candidates() -> list:
             seen.add(c["refresh_token"])
             out.append(c)
     return out
+
+
+# ---------------------------------------------------------------------------
+# 号池（多套独立 DPoP 会话调度）
+# ---------------------------------------------------------------------------
+# 每条 = 一套独立登录会话 {label, refresh_token, dpop_priv, dpop_pub,
+# verifier, station, enabled, weight, priority}，存在 state 文件的 "pool" 里，
+# 与主会话分离。refresh_token 单次有效：用掉即轮转，新 token 回写到该条目。
+# 「抓取本机」从各凭证库（桌面端 / VS Code 插件）各收一条进来。
+#
+# 调度、熔断、冷却、重试、粘性全部交给共用引擎 buddyzpool（与 mc 通道同源），
+# 策略/阈值可在 GUI「号池设置」里改，存在 state 的 "pool_cfg"。
+_POOL_CRED: dict = {}          # {label: cred} 凭据缓存（避免每请求都打 STS）
+_ENGINE = None
+_ENGINE_LOCK = _th.RLock()
+
+
+def _pool_entries() -> list:
+    """池条目（含禁用；是否可用交给引擎判断 enabled）。"""
+    st = _load_state()
+    out = []
+    for e in (st.get("pool") or []):
+        if isinstance(e, dict) and e.get("refresh_token") and e.get("dpop_priv"):
+            out.append(e)
+    return out
+
+
+def _pool_engine():
+    """懒建共用调度引擎；配置从 state 的 pool_cfg 读。"""
+    global _ENGINE
+    with _ENGINE_LOCK:
+        if _ENGINE is None:
+            import importlib
+            from pathlib import Path as _P
+            root = str(_P(__file__).resolve().parent.parent)   # runtime/ 或 _study/
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            try:
+                bzp = importlib.import_module("buddyzpool")
+            except Exception as e:  # noqa: BLE001
+                _log(f"[ca-pool] 调度引擎不可用，退化为顺序轮转: {e}")
+                bzp = None
+            if bzp is None:
+                _ENGINE = False
+            else:
+                _ENGINE = bzp.PoolEngine(
+                    _pool_entries,
+                    (_load_state().get("pool_cfg") or {}),
+                    log=lambda s: _log(s.replace("[pool]", "[ca-pool]")))
+        return _ENGINE or None
+
+
+def pool_config() -> dict:
+    eng = _pool_engine()
+    if eng is None:
+        return {}
+    cfg = eng.config()
+    st = _load_state()
+    cfg["pool_enabled"] = bool(CONFIG.get("pool_enabled"))
+    cfg["_saved"] = bool(st.get("pool_cfg"))
+    return cfg
+
+
+def pool_set_config(**kw) -> dict:
+    """改调度参数并落盘（GUI「号池设置」用）。"""
+    eng = _pool_engine()
+    clean = {k: v for k, v in kw.items() if v is not None}
+    if eng is not None:
+        eng.set_config(**clean)
+        saved = dict(eng.config())
+    else:
+        saved = clean
+
+    def _run():
+        st = _load_state()
+        cur = st.get("pool_cfg") or {}
+        cur.update(clean)
+        st["pool_cfg"] = cur
+        _save_state(st)
+    _locked_state_update(_run)
+    return saved
+
+
+def pool_targets() -> list:
+    """`pool_probe(idx)` 所用的**同一份**条目列表（索引严格对齐）。
+
+    GUI 遍历批量测试时必须用它，别自己按 pool_list() 另列一份：
+    条目顺序/过滤不一致会让下标错位、测到错的号。
+    """
+    return _pool_entries()
+
+
+def pool_action_text(idx: int) -> str:
+    """探测后把引擎对该条目的处置翻成一句人话（供 GUI 展示）。"""
+    eng = _pool_engine()
+    if eng is None:
+        return ""
+    for s in (eng.snapshot() or []):
+        if s.get("idx") != idx:
+            continue
+        if s["state"] == "off":
+            return "已停用（按复检间隔自动恢复）"
+        if s["state"] == "cooling":
+            return f"已冷却 {s['cool_remain']:.0f}s"
+        return "保持可用"
+    return ""
+
+
+def pool_probe(idx: int) -> tuple:
+    """实测第 idx 条：真实走一次续期，**并把轮转后的新 refresh_token 回写**。
+
+    返回 (是否可用, 说明)。回写这一步是关键——refresh_token 单次有效，
+    只测不存会把条目的 token 用掉却不更新，等于把这条弄坏。
+    失败时按 manual 走**立即处置**（不等连续失败阈值）。
+    """
+    ents = _pool_entries()
+    if not (0 <= idx < len(ents)):
+        return False, "条目不存在"
+    e = ents[idx]
+    label = e.get("label") or f"#{idx}"
+    cand = {"refresh_token": e.get("refresh_token"),
+            "dpop_priv": e.get("dpop_priv"), "dpop_pub": e.get("dpop_pub"),
+            "verifier": e.get("verifier", ""), "station": e.get("station"),
+            "label": label}
+    t0 = time.time()
+    try:
+        cred, new_rt = _refresh_candidate(cand)
+    except Exception as ex:  # noqa: BLE001
+        status = _refresh_status(ex)
+        if status in AUTH_DEAD_CA:
+            _POOL_CRED.pop(label, None)
+        _pool_fail(idx, status, manual=True,
+                   note=f"{type(ex).__name__}: {str(ex)[:60]}")
+        return False, f"{type(ex).__name__}: {str(ex)[:100]} → {pool_action_text(idx)}"
+    _POOL_CRED[label] = cred
+    _pool_save_back(idx, cand, new_rt)
+    _pool_ok(idx, latency=time.time() - t0)
+    return True, f"续期成功，到期 {cred.get('expiration')}"
+
+
+def pool_reset_stats():
+    eng = _pool_engine()
+    if eng is not None:
+        eng.reset_stats()
+
+
+def pool_clear_cooldowns():
+    eng = _pool_engine()
+    if eng is not None:
+        eng.clear_cooldowns()
+    _POOL_CRED.clear()
+
+
+def _pool_cached(label: str):
+    """该条目有没有还新鲜的凭据缓存（剩 300s 以上才算新鲜）。"""
+    cred = _POOL_CRED.get(label)
+    if cred and not _need_refresh(cred):
+        return cred
+    return None
+
+
+def _pool_order():
+    """兼容包装：交给引擎按策略给候选（[(idx, entry)]）。
+
+    ca 内部走引擎；保留这个同名函数是为了与 mc 通道 API 对称，
+    也避免外部/脚本按老名字调用时 AttributeError。
+    """
+    eng = _pool_engine()
+    if eng is None:
+        return []
+    return eng.order()
+
+
+def _pool_fail(i, status=None, retry_after=None, manual=False, note=""):
+    """失败回馈给引擎（按状态分级冷却 / 失效转 off / 指数退避）。
+
+    manual=True：显式健康探测失败，立即按规则处置（不等连续失败阈值）。
+    """
+    eng = _pool_engine()
+    if eng is not None:
+        eng.fail(i, status=status, retry_after=retry_after, manual=manual,
+                 note=(note or (f"HTTP {status}" if status else "")))
+
+
+def _pool_ok(i, latency=None):
+    eng = _pool_engine()
+    if eng is not None:
+        eng.ok(i, latency=latency)
+
+
+def _pool_state():
+    """给 /health 与 GUI 的池状态（含引擎统计）。"""
+    eng = _pool_engine()
+    keys = []
+    summ = {}
+    if eng is not None:
+        ents = _pool_entries()          # 只读一次状态文件（原来每个条目各读一次）
+        for s in eng.snapshot():
+            e = ents[s["idx"]] if 0 <= s["idx"] < len(ents) else {}
+            keys.append({
+                "label": s["label"],
+                "station": e.get("station") or "china",
+                "enabled": s["enabled"],
+                "state": s["state"],
+                "cooling": s["state"] == "cooling",
+                "off": s["state"] == "off",
+                "cool_remain": round(s["cool_remain"], 1),
+                "cached": _pool_cached(s["label"]) is not None,
+                "inflight": s["inflight"],
+                "ok": s["ok"],
+                "fail": s["fail"],
+                "consec": s["consec"],
+                "last_error": s["last_error"],
+                "latency_ms": s["latency_ms"],
+                "weight": s["weight"],
+                "priority": s["priority"],
+            })
+        summ = eng.summary()
+    else:
+        summ = {}
+    return {"enabled": bool(CONFIG.get("pool_enabled")), "keys": keys, "summary": summ,
+            "strategy": (eng.config().get("strategy") if eng is not None else "")}
+
+
+def _refresh_status(err: Exception) -> int | None:
+    """从 refresh 异常里抠 HTTP 状态码（_do_refresh 报 refresh 失败(XXX)）。"""
+    m = re.search(r"refresh 失败\((\d{3})\)", str(err))
+    return int(m.group(1)) if m else None
+
+
+def _refresh_candidate(cand: dict) -> tuple:
+    """用一条候选（池条目 / 临时组装）走 STS 续期，返回 (credentials, 新refresh_token)。
+
+    只续期不落盘：落盘由调用方决定写哪（主 state 还是池条目），
+    避免池条目的新 token 盖掉主会话、或反之。
+    """
+    proof = _dpop_jwt(cand["dpop_priv"], cand["dpop_pub"], "POST", STS)
+    with httpx.Client(timeout=30) as c:
+        r = c.post(STS, data={"client_id": CLIENT_ID, "code_verifier": cand["verifier"],
+                              "grant_type": "refresh_token",
+                              "refresh_token": cand["refresh_token"]},
+                   headers={"DPoP": proof, "Content-Type": "application/x-www-form-urlencoded"})
+    body = r.json()
+    if r.status_code != 200 or "credentials" not in body:
+        raise RuntimeError(f"refresh 失败({r.status_code}): {str(body)[:200]}")
+    cred = body["credentials"]
+    cred["station"] = cand.get("station") or _current_station()
+    return cred, body.get("refresh_token")
+
+
+def _pool_save_back(idx: int, cand: dict, body_refresh: str | None):
+    """池条目续期成功：新 refresh_token 回写到该条目。"""
+    def _run():
+        st = _load_state()
+        pool = st.get("pool") or []
+        # 按 label 定位（轮转中条目顺序可能与 _pool_entries 一致，直接按 idx 也行，
+        # 但 label 更稳：_pool_entries 过滤禁用条目后下标会对齐，此处双保险）
+        target = None
+        if 0 <= idx < len(pool) and isinstance(pool[idx], dict) \
+                and pool[idx].get("label") == cand.get("label"):
+            target = pool[idx]
+        else:
+            for e in pool:
+                if isinstance(e, dict) and e.get("label") == cand.get("label"):
+                    target = e
+                    break
+        if target is not None and body_refresh:
+            target["refresh_token"] = body_refresh
+            target["station"] = cand.get("station") or target.get("station") or "china"
+            _save_state(st)
+    _locked_state_update(_run)
+
+
+def pool_list() -> list:
+    """全部池条目（含禁用），供 GUI 对话框展示。"""
+    st = _load_state()
+    return [dict(e) for e in (st.get("pool") or []) if isinstance(e, dict)]
+
+
+def pool_harvest() -> dict:
+    """从本机各凭证库各收一条会话进池（按 refresh_token 去重）。
+
+    返回 {"added": [...labels], "skipped": [...labels]}。
+    """
+    added, skipped = [], []
+
+    def _run():
+        st = _load_state()
+        pool = st.get("pool") or []
+        known = {e.get("refresh_token") for e in pool if isinstance(e, dict)}
+        for label, sess in _bootstrap_all():
+            if not (sess.get("refresh_token") and sess.get("dpop_priv")):
+                continue
+            if sess["refresh_token"] in known:
+                skipped.append(label)
+                continue
+            station = sess.get("station") or "china"
+            tag = "国际" if station == "international" else "国内"
+            pool.append({"label": f"{label}·{tag}",
+                         "refresh_token": sess["refresh_token"],
+                         "dpop_priv": sess["dpop_priv"], "dpop_pub": sess["dpop_pub"],
+                         "verifier": sess.get("verifier", ""),
+                         "station": station, "enabled": True,
+                         "weight": 1, "priority": 0})
+            known.add(sess["refresh_token"])
+            added.append(label)
+        st["pool"] = pool
+        _save_state(st)
+    _locked_state_update(_run)
+    _pool_invalidate()
+    return {"added": added, "skipped": skipped}
+
+
+def _pool_invalidate():
+    """池结构变了（增删/启停）→ 让引擎复位结构态、清凭据缓存。
+
+    引擎的运行时状态按 label 索引、统计保留；冷却/粘性清掉，避免下标错位。
+    """
+    eng = _pool_engine()
+    if eng is not None:
+        eng.invalidate()
+    _POOL_CRED.clear()
+
+
+def pool_toggle(idx: int) -> bool | None:
+    """启用/停用第 idx 条（按 pool_list 顺序），返回新 enabled，无效返回 None。"""
+    out = [None]
+
+    def _run():
+        st = _load_state()
+        pool = [e for e in (st.get("pool") or []) if isinstance(e, dict)]
+        if 0 <= idx < len(pool):
+            pool[idx]["enabled"] = not pool[idx].get("enabled", True)
+            st["pool"] = pool
+            _save_state(st)
+            out[0] = pool[idx]["enabled"]
+    _locked_state_update(_run)
+    _pool_invalidate()
+    return out[0]
+
+
+def pool_remove(idx: int) -> bool:
+    """删除第 idx 条（按 pool_list 顺序）。"""
+    out = [False]
+
+    def _run():
+        st = _load_state()
+        pool = [e for e in (st.get("pool") or []) if isinstance(e, dict)]
+        if 0 <= idx < len(pool):
+            pool.pop(idx)
+            st["pool"] = pool
+            _save_state(st)
+            out[0] = True
+    _locked_state_update(_run)
+    _pool_invalidate()
+    return out[0]
+
+
+def _store_ticket_creds() -> dict | None:
+    """凭证库里的**直连临时凭证**（登录时签发的 AK/SK + 安全令牌）。
+
+    这类凭证不需要 refresh_token 轮转，直接就能签名调 opengw —— 对 VS Code
+    插件登录尤其合适：不会把插件手里那份 refresh_token 顶掉（轮转是单次的，
+    我们一续期，插件那边的副本就失效了，用户得重登）。
+    """
+    for label, sess in _bootstrap_all_cached():
+        if not (sess.get("access_key_id") and sess.get("secret_access_key")):
+            continue
+        exp = sess.get("expires_at")
+        if exp:
+            try:
+                e = datetime.fromisoformat(str(exp).replace("Z", "+00:00"))
+                if (e - datetime.now(timezone.utc)).total_seconds() < 300:
+                    continue          # 已过期/将过期：交给 DPoP 链去续
+            except Exception:
+                pass
+        _log(f"[ca] 使用 {label} 的直连临时凭证（无需轮转）")
+        return {"access_key_id": sess["access_key_id"],
+                "secret_access_key": sess["secret_access_key"],
+                "security_token": sess.get("security_token", ""),
+                "expiration": exp, "station": sess.get("station") or "china"}
+    return None
 
 
 def _ticket_creds() -> dict | None:
@@ -328,14 +929,96 @@ def _ticket_creds() -> dict | None:
 
 
 BENEFIT_MODELS = {"deepseek-v4-flash-0731", "deepseek-v4-pro-0813", "glm-5.3-flash"}
+# 视作「会话/凭据失效」的状态码：不是慢，而是这条会话不能用了
+AUTH_DEAD_CA = (401, 403)
 
 
-def ensure_creds(prefer: str = "dpop") -> dict:
-    """prefer: dpop=桌面链（默认）| ticket=独立 OAuth。任一条走不通自动换另一条试。"""
+def _content_text(content) -> str:
+    """把 chat 消息的 content（str 或 [{type,text},…]）压成纯文本。"""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        out = []
+        for p in content:
+            if isinstance(p, dict) and p.get("type") in ("text", "input_text", "output_text"):
+                out.append(str(p.get("text") or ""))
+            elif isinstance(p, str):
+                out.append(p)
+        return "".join(out)
+    return ""
+
+
+def conv_key_of(messages: list) -> str | None:
+    """会话标识：取第一条 user 消息的哈希。
+
+    会话粘性靠它把同一段对话固定到同一池条目（利于上游 prompt cache），
+    只做短哈希，不含原文。
+    """
+    try:
+        for m in (messages or []):
+            if isinstance(m, dict) and m.get("role") == "user":
+                txt = _content_text(m.get("content"))
+                if txt:
+                    return hashlib.sha1(txt.encode()).hexdigest()[:16]
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def ensure_creds(prefer: str = "dpop", conv_key: str | None = None) -> dict:
+    """prefer: dpop=桌面链（默认）| ticket=独立 OAuth。任一条走不通自动换另一条试。
+
+    conv_key：会话标识（可选）。开了会话粘性时，同一会话固定用同一池条目
+    （利于上游 prompt cache），粘住的条目不可用时回落但保留绑定。
+    """
     def _run():
         order = ["ticket", "dpop"] if prefer == "ticket" else ["dpop", "ticket"]
 
         def _try_dpop():
+            # 号池开 → 交给调度引擎按策略给候选，逐条试（含 max_retries 上限）
+            eng = _pool_engine() if CONFIG.get("pool_enabled") else None
+            if eng is not None:
+                cands = eng.order(conv_key)
+                if not cands:
+                    _log("[ca-pool] 池内无健康条目，退回传统候选链")
+                for i, ent in cands:
+                    label = ent.get("label") or f"池#{i}"
+                    eng.begin(i)
+                    try:
+                        # 先看缓存：凭据没到期就直接用，别再打一次 STS
+                        hit = _pool_cached(label)
+                        if hit is not None:
+                            eng.ok(i)
+                            eng.bind(conv_key, i)
+                            _log(f"[ca-pool] 用缓存凭据（{label}）")
+                            return hit
+                        cand = {"refresh_token": ent.get("refresh_token"),
+                                "dpop_priv": ent.get("dpop_priv"),
+                                "dpop_pub": ent.get("dpop_pub"),
+                                "verifier": ent.get("verifier", ""),
+                                "station": ent.get("station"),
+                                "label": label}
+                        t0 = time.time()
+                        try:
+                            cred, new_rt = _refresh_candidate(cand)
+                        except Exception as e:  # noqa: BLE001
+                            status = _refresh_status(e)
+                            if status in AUTH_DEAD_CA:
+                                _POOL_CRED.pop(label, None)
+                            _log(f"[ca-pool] {label} 续期失败: {e}")
+                            eng.fail(i, status=status,
+                                     note=str(e)[:80])
+                            continue
+                        _POOL_CRED[label] = cred
+                        _pool_save_back(i, cand, new_rt)
+                        eng.ok(i, latency=time.time() - t0)
+                        eng.bind(conv_key, i)
+                        _log(f"[ca-pool] DPoP 续期成功（{label}，"
+                             f"到期 {cred.get('expiration')}）")
+                        return cred
+                    finally:
+                        eng.end(i)
+                _log("[ca-pool] 池候选试尽，退回传统候选链")
             for cand in _dpop_candidates():
                 try:
                     proof = _dpop_jwt(cand["dpop_priv"], cand["dpop_pub"], "POST", STS)
@@ -352,7 +1035,9 @@ def ensure_creds(prefer: str = "dpop") -> dict:
                                    "verifier": cand["verifier"], "last": body})
                         _save_state(st)
                         _log(f"[ca] DPoP 续期成功（{cand['label']}）")
-                        return body["credentials"]
+                        cred = body["credentials"]
+                        cred["station"] = _current_station()
+                        return cred
                     _log(f"[ca] DPoP 候选 {cand['label']} 失败: {str(body)[:120]}")
                 except Exception as e:  # noqa: BLE001
                     _log(f"[ca] DPoP 候选 {cand['label']} 异常: {e}")
@@ -363,42 +1048,166 @@ def ensure_creds(prefer: str = "dpop") -> dict:
             tk = _ticket_creds()
             if tk:
                 _log("[ca] 使用 ticket 独立凭证")
-            return tk
+                return tk
+            # 桌面端 / VS Code 插件登录时签发的直连临时凭证（免轮转）
+            return _store_ticket_creds()
 
         for which in order:
             cred = _try_ticket() if which == "ticket" else _try_dpop()
             if cred:
                 return cred
-        raise RuntimeError("CodeArts 会话已失效：请打开 CodeArts 桌面端登录一次，"
+        raise RuntimeError("CodeArts 会话已失效：请在 CodeArts 桌面端或 VS Code 插件"
+                           "（huaweicloud.vscode-codebot）登录一次，"
                            "或点面板「授权」重新授权（余额/签到用 ticket 链，对话用 DPoP 链）")
     return _locked_state_update(_run)
 
 
-def build_authorize_url(port: int) -> dict:
-    """生成授权 URL（PKCE 存内存待回调配对）。"""
+def build_authorize_url(port: int, station: str | None = None) -> dict:
+    """生成授权 URL（PKCE 存内存待回调配对）。station 缺省跟随当前判定。
+
+    ticket_id 必须是 **UUID v4（含连字符）**，对齐官方插件 `YMs`（uuid v4 生成器）。
+    我们原先用 `secrets.token_hex(32)` 产 64 位无连字符 hex，服务端不认，
+    导致 `TM.00001001 无效ticketId` —— 无论轮询多久都救不了。
+    """
+    station = station or _current_station()
     verifier = _b64u(secrets.token_bytes(64))
     challenge = _b64u(hashlib.sha256(verifier.encode()).digest())
-    ticket = secrets.token_hex(32)
-    _OAUTH_PENDING[ticket] = {"verifier": verifier, "at": time.time()}
+    ticket = str(uuid.uuid4())               # UUID v4，含连字符
+    _OAUTH_PENDING[ticket] = {"verifier": verifier, "at": time.time(),
+                              "station": station}
     params = {"theme": "dark", "locale": "zh-cn", "uri_scheme": CLIENT_ID,
               "client_id": CLIENT_ID, "port": str(port),
               "code_challenge": challenge, "code_challenge_method": "S256",
-              "ticket_id": ticket, "plugin-name": "snap_AIIDE", "plugin-version": "5.3.0"}
-    url = ("https://codearts.huaweicloud.com/portal/authorize?"
+              "ticket_id": ticket,
+              # 官方插件会把本地回调地址一并带上（否则 portal 只能靠 port 猜），
+              # 参数顺序也照抄插件，避免某些网关按序解析。
+              "auth_callback_url": f"http://127.0.0.1:{port}/oauth/callback",
+              "plugin-name": PLUGIN_NAME, "plugin-version": PLUGIN_VERSION}
+    url = (_portal(station) + "/portal/authorize?"
            + "&".join(f"{k}={quote(v, safe='')}" for k, v in params.items()))
-    return {"url": url, "ticket_id": ticket}
+    if station == "international":
+        # 插件：`t.globalState.get(Ch)==="international" && (I=`${I}&quickcompfalg=1`)`
+        url += "&quickcompfalg=1"
+    return {"url": url, "ticket_id": ticket, "station": station}
 
 
-def _exchange_ticket(ticket_id: str, secret: str) -> dict:
-    with httpx.Client(timeout=30) as c:
-        r = c.get(SNAP + "/snap-manager/v1/login/ticket",
-                  params={"ticket_id": ticket_id, "secret": secret},
-                  headers={"Content-Type": "application/json;charset=UTF-8",
-                           "plugin-name": "snap_AIIDE", "plugin-version": "5.3.0"})
-    body = r.json()
-    if r.status_code != 200 or "credential" not in body:
-        raise RuntimeError(f"ticket 换票失败({r.status_code}): {str(body)[:200]}")
-    return body["credential"]
+# --- 换票是**轮询**语义（关键！） -------------------------------------------
+# portal 重定向回本地回调那一刻，ticket 常常**尚未就绪**。华为云官方 VS Code 插件
+# （WebLoginStrategy.queryAuth）就是 setInterval 轮询：
+#     TICKET_RETRY_TIME_INTERVAL = 2e3     每 2 秒一次
+#     MAX_TOKEN_QUERY_TIME       = 3*60*1e3 最长 3 分钟
+# 期间 400 `无效ticketId`(TM.00001001) 属于"还没就绪"，必须继续重试而不是报错；
+# 只有 AUTH.9022（浏览器登录的账号与 IDE 当前账号不一致）才立即终止。
+# 只换一次就判失败 = 必然误报（本模块曾如此）。
+TICKET_POLL_INTERVAL = 2.0
+TICKET_POLL_TIMEOUT = 180.0
+TICKET_FATAL_CODES = {"AUTH.9022"}
+PLUGIN_NAME = "snap_AIIDE"      # 桌面端；VS Code 插件为 snap_vscode
+PLUGIN_VERSION = "5.3.0"
+
+# OAuth 换票进度（供 /v1/auth/status 与 GUI 展示）
+_AUTH_EXCHANGE: dict = {}
+
+
+def _ticket_get(ticket_id: str, secret: str, station: str | None = None) -> tuple:
+    """单次换票 → (credential|None, error_code, message)。网络异常不抛，转成 message。"""
+    try:
+        with httpx.Client(timeout=30) as c:
+            r = c.get(_snap(station) + "/snap-manager/v1/login/ticket",
+                      params={"ticket_id": ticket_id, "secret": secret},
+                      headers={"Content-Type": "application/json;charset=UTF-8",
+                               "plugin-name": PLUGIN_NAME,
+                               "plugin-version": PLUGIN_VERSION})
+    except Exception as e:  # noqa: BLE001
+        return None, "", f"{type(e).__name__}: {str(e)[:120]}"
+    try:
+        body = r.json()
+    except Exception:  # noqa: BLE001
+        body = {"error_msg": (r.text or "")[:200]}
+    if not isinstance(body, dict):
+        body = {"error_msg": str(body)[:200]}
+    if r.status_code == 200 and isinstance(body.get("credential"), dict):
+        return body["credential"], "", ""
+    code = str(body.get("error_code") or f"HTTP {r.status_code}")
+    return None, code, str(body.get("error_msg") or "")[:200]
+
+
+def _exchange_ticket(ticket_id: str, secret: str, station: str | None = None,
+                     log=None) -> dict:
+    """换票（**轮询**，见文件上方常量注释）。成功返回 credential，超时/致命错抛异常。
+
+    注意：这会阻塞最长 TICKET_POLL_TIMEOUT 秒，**只能在线程里调**，
+    别直接放在 async 路由里（会把整个服务卡死）。
+    """
+    t0, attempt, last = time.time(), 0, "未尝试"
+    while True:
+        attempt += 1
+        cred, code, msg = _ticket_get(ticket_id, secret, station)
+        if cred is not None:
+            return cred
+        last = f"{code}: {msg}" if code else msg
+        if code in TICKET_FATAL_CODES:
+            raise RuntimeError(f"ticket 换票失败({code}): {msg}")
+        if time.time() - t0 >= TICKET_POLL_TIMEOUT:
+            raise RuntimeError(f"ticket 换票超时（轮询 {attempt} 次 / "
+                               f"{TICKET_POLL_TIMEOUT:.0f}s 仍未就绪）：{last}")
+        if log and attempt == 1:
+            log(f"[ca] 换票暂未就绪（{last}）—— 按官方插件语义每 "
+                f"{TICKET_POLL_INTERVAL:.0f}s 重试，最长 {TICKET_POLL_TIMEOUT / 60:.0f} 分钟")
+        time.sleep(TICKET_POLL_INTERVAL)
+
+
+def _exchange_bg(ticket_ids: list, secret: str, station: str | None) -> None:
+    """后台轮询换票（语义见 TICKET_POLL_* 注释）。
+
+    逐个候选 ticket_id 试（最新优先），任一轮成功即落盘并结束。
+    只在**后台线程**里跑：最长 3 分钟，绝不能占住事件循环或浏览器。
+    """
+    t0, attempt, last = time.time(), 0, "未尝试"
+    while True:
+        attempt += 1
+        for tid in ticket_ids:
+            cred, code, msg = _ticket_get(tid, secret, station)
+            if cred is not None:
+                def _run(_c=cred):
+                    st = _load_state()
+                    st["ticket"] = {"access": _c.get("access"),
+                                    "secret": _c.get("secret"),
+                                    "securitytoken": _c.get("securitytoken", ""),
+                                    "expires_at": _c.get("expires_at")}
+                    _save_state(st)
+
+                try:
+                    _locked_state_update(_run)
+                except Exception as e:  # noqa: BLE001
+                    last = f"存盘失败: {e}"
+                    _log(f"[ca] 换票已成功但凭证存盘失败：{e}")
+                    _AUTH_EXCHANGE.update({"state": "error", "attempts": attempt,
+                                           "error": last, "at": time.time()})
+                    return
+                _log(f"[ca] OAuth 授权成功（第 {attempt} 轮换票拿到凭证，已存盘）")
+                _AUTH_EXCHANGE.update({"state": "ok", "attempts": attempt,
+                                       "error": "", "at": time.time()})
+                return
+            last = f"{code}: {msg}" if code else msg
+            if code in TICKET_FATAL_CODES:
+                # 例如 AUTH.9022：浏览器里登录的账号 ≠ IDE 当前账号，重试无意义
+                _log(f"[ca] 换票终止（{code}）：{msg}")
+                _AUTH_EXCHANGE.update({"state": "error", "attempts": attempt,
+                                       "error": last, "at": time.time()})
+                return
+        _AUTH_EXCHANGE.update({"state": "pending", "attempts": attempt,
+                               "error": last, "at": time.time()})
+        if time.time() - t0 >= TICKET_POLL_TIMEOUT:
+            _log(f"[ca] 换票超时（轮询 {attempt} 轮 / {TICKET_POLL_TIMEOUT:.0f}s "
+                 f"仍未就绪）：{last}")
+            _AUTH_EXCHANGE.update({"state": "timeout", "attempts": attempt,
+                                   "error": last, "at": time.time()})
+            return
+        if attempt == 1:
+            _log(f"[ca] 换票暂未就绪（{last}）—— 按官方插件语义每 "
+                 f"{TICKET_POLL_INTERVAL:.0f}s 重试，最长 {TICKET_POLL_TIMEOUT / 60:.0f} 分钟")
+        time.sleep(TICKET_POLL_INTERVAL)
 
 
 def _ensure_creds_dpop() -> dict:
@@ -413,7 +1222,8 @@ def _ensure_creds_dpop() -> dict:
         if cred and not _need_refresh(cred):
             return cred
         if not st.get("refresh_token"):
-            raise RuntimeError("无 CodeArts 会话：请打开 CodeArts 桌面端登录一次（或走 OAuth 授权）")
+            raise RuntimeError("无 CodeArts 会话：请在 CodeArts 桌面端或 VS Code 插件"
+                               "（huaweicloud.vscode-codebot）登录一次（或走 OAuth 授权）")
         try:
             return _do_refresh(st)
         except RuntimeError as e:
@@ -425,7 +1235,7 @@ def _ensure_creds_dpop() -> dict:
                         st[k] = desk.get(k)
                     st.pop("last", None)
                     _save_state(st)
-                    _log("[ca] 检测到桌面端新会话，已切换")
+                    _log("[ca] 检测到新的登录会话（桌面端 / VS Code 插件），已切换")
                     return _do_refresh(st)
             if "refresh_token" not in str(e) and "refresh 失败" not in str(e):
                 raise
@@ -515,8 +1325,10 @@ def _chat_prep(model: str, messages: list, max_tokens: int, stream: bool,
                tools: list | None = None, tool_choice=None):
     """返回 (url, headers, raw)：调用方自建 httpx.Client（避免 GC 提前关连接）"""
     # 免费模型优先 ticket 独立链（实测有 benefit 路由），glm-5.2 走桌面 DPoP 链
-    cred = ensure_creds(prefer="ticket" if model in BENEFIT_MODELS else "dpop")
-    url = SNAP + "/api/v2/chat/completions"
+    cred = ensure_creds(prefer="ticket" if model in BENEFIT_MODELS else "dpop",
+                        conv_key=conv_key_of(messages))
+    # 对话域跟随出凭证的那条会话的站点（号池里可能国内外混用）
+    url = (_snap(cred.get("station")) + "/api/v2/chat/completions")
     payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "stream": stream}
     payload.update(_tool_payload(tools, tool_choice))
     raw = json.dumps(payload).encode()
@@ -561,51 +1373,88 @@ async def oauth_callback(req: Request):
     from urllib.parse import urlparse, parse_qs
     q = dict(req.query_params)
 
-    def _ticket_from_redirect(url: str) -> str:
-        """ticket_id 常嵌在 redirect 的 query 里，顶层并没有。"""
-        try:
-            return (parse_qs(urlparse(url).query).get("ticket_id") or [""])[0]
-        except Exception:  # noqa: BLE001
-            return ""
+    def _station_from_redirect(redirect_url: str) -> str:
+            """从 redirect URL 域名识别站点：国内 codearts.huaweicloud.com / 国际 codearts.ap-southeast-1.huaweicloud.com。"""
+            try:
+                host = urlparse(redirect_url).netloc.lower()
+            except Exception:
+                return "china"
+            if "ap-southeast-1" in host or "intl" in host:
+                return "international"
+            return "china"
 
     # 必须先判 secret：否则带 redirect 的回调会被下面的 307 短路，换票代码永远走不到。
     if "secret" in q:
-        # ticket 登录流：ticket_id 取顶层 → redirect 内嵌 → pending 兜底
-        ticket_id = q.get("ticket_id", "") or _ticket_from_redirect(q.get("redirect", ""))
-        if not ticket_id:
-            # 从 pending 里找唯一未过期的
-            now = time.time()
-            cands = [(t, v) for t, v in _OAUTH_PENDING.items() if now - v.get("at", 0) < 600]
-            ticket_id = cands[-1][0] if cands else ""
-        try:
-            cred = _exchange_ticket(ticket_id, q["secret"])
-            st = _load_state()
-            st["ticket"] = {"access": cred.get("access"), "secret": cred.get("secret"),
-                            "securitytoken": cred.get("securitytoken", ""),
-                            "expires_at": cred.get("expires_at")}
-            _save_state(st)
-            _log("[ca] OAuth 授权成功，ticket 凭证已存")
-            return HTMLResponse("<html><body><h2>授权成功，可以关掉此页，回网关点“测试”验证</h2></body></html>")
-        except Exception as e:  # noqa: BLE001
-            return HTMLResponse(f"<html><body><h2>换票失败：{e}</h2></body></html>", status_code=400)
+                # ticket 登录流。**回调里没有服务端签发的 ticket_id**（官方插件的回调
+                # 也只读 secret/code/redirect），ticket_id 就是他自己发起时生成、
+                # 通过 authorize URL 带过去的那一个。多次点「授权」会留下多个 pending，
+                # 无法从 secret 反推是哪一个 → 全部收进来逐个试（最新优先）。
+                cands_ids: list = []
+                for cand in (q.get("ticket_id", ""),
+                             (parse_qs(urlparse(q.get("redirect", "")).query)
+                              .get("ticket_id") or [""])[0]):
+                    if cand and cand not in cands_ids:
+                        cands_ids.append(cand)
+                now = time.time()
+                pend = [(t, v) for t, v in _OAUTH_PENDING.items()
+                        if now - v.get("at", 0) < 600]
+                for _t, _v in reversed(pend):        # 最新优先
+                    if _t not in cands_ids:
+                        cands_ids.append(_t)
+                if not cands_ids:
+                    return HTMLResponse(
+                        "<html><body><h2>换票失败：没有可用的 ticket_id</h2>"
+                        "<p>请回网关重新点「授权」（不要用旧标签页）。</p></body></html>",
+                        status_code=400)
+                # 站点：优先 redirect URL 域名判定，兜底该 ticket 的 pending 站点
+                redirect = q.get("redirect", "")
+                station = _station_from_redirect(redirect) if redirect else (
+                    (_OAUTH_PENDING.get(cands_ids[0]) or {}).get("station")
+                )
+                # ⚠ 换票是轮询语义（最长 3 分钟，见 TICKET_POLL_* 注释）。
+                # 绝不能在这里同步等待 —— 会卡住浏览器、也会卡死整个事件循环。
+                # 起后台线程去轮询，页面立即返回（官方插件也是让浏览器先走）。
+                _AUTH_EXCHANGE.clear()
+                _AUTH_EXCHANGE.update({"state": "pending", "attempts": 0,
+                                       "at": now, "error": "", "station": station,
+                                       "candidates": len(cands_ids)})
+                _th.Thread(target=_exchange_bg,
+                           args=(list(cands_ids), q["secret"], station),
+                           daemon=True).start()
+                return HTMLResponse(
+                    "<html><body style='font-family:sans-serif;padding:24px'>"
+                    "<h2>授权已收到，正在换取凭证…</h2>"
+                    f"<p>ticket 通常需要几秒到几分钟才就绪，网关会按官方插件的语义"
+                    f"（每 {TICKET_POLL_INTERVAL:.0f}s 重试，最长 "
+                    f"{TICKET_POLL_TIMEOUT / 60:.0f} 分钟）自动重试。</p>"
+                    "<p><b>可以直接关掉此页</b>，回网关看日志或点「测试」。</p>"
+                    "</body></html>")
     if "redirect" in q and "code" not in q:
         return RedirectResponse(url=q["redirect"], status_code=307)
     if "code" in q:
         # 标准 OAuth code 流：用各 pending verifier 逐个试换
         import httpx as _hx
+        import asyncio as _aio
         port = int(CONFIG.get("port") or 9100)
         now = time.time()
         cands = [(t, v) for t, v in _OAUTH_PENDING.items() if now - v.get("at", 0) < 600]
         errs = []
-        for tid, pv in cands:
+        for _tid, pv in cands:
             try:
-                with _hx.Client(timeout=30) as c:
-                    r = c.post(STS, data={"client_id": CLIENT_ID,
-                                          "code_verifier": pv["verifier"],
-                                          "grant_type": "authorization_code",
-                                          "code": q["code"],
-                                          "redirect_uri": f"http://127.0.0.1:{port}/oauth/callback"},
-                               headers={"Content-Type": "application/x-www-form-urlencoded"})
+                def _sync(_pv=pv, _code=q["code"], _port=port):
+                    # 同步 httpx 放线程里，别阻塞事件循环。
+                    # 注意 _pv/_code/_port 用默认参数**绑定当前值**：直接闭包引用
+                    # 循环变量会在下一轮被改写（晚绑定），拿到错的那个候选。
+                    with _hx.Client(timeout=30) as c:
+                        return c.post(STS, data={
+                            "client_id": CLIENT_ID,
+                            "code_verifier": _pv["verifier"],
+                            "grant_type": "authorization_code",
+                            "code": _code,
+                            "redirect_uri": f"http://127.0.0.1:{_port}/oauth/callback"},
+                            headers={"Content-Type": "application/x-www-form-urlencoded"})
+
+                r = await _aio.to_thread(_sync)
                 body = r.json()
                 if r.status_code == 200 and "credentials" in body:
                     st = _load_state()
@@ -633,12 +1482,16 @@ async def auth_url():
 
 @app.get("/v1/auth/status")
 async def auth_status():
+    import asyncio as _aio
     st = _load_state()
     tk = st.get("ticket") or {}
     out = {"ticket": bool(tk.get("access")), "ticket_expires": tk.get("expires_at"),
-           "dpop": bool(st.get("refresh_token"))}
+           "dpop": bool(st.get("refresh_token")),
+           # OAuth 换票进度（前端授权后可能还在后台轮询，见 _exchange_bg）
+           "exchange": dict(_AUTH_EXCHANGE)}
+    # ensure_creds 内部可能走 STS 续期（同步网络），必须放线程，别卡事件循环
     try:
-        cred = ensure_creds()
+        cred = await _aio.to_thread(ensure_creds)
         out["ok"] = True
         out["expires"] = cred.get("expiration")
     except Exception as e:  # noqa: BLE001
@@ -649,14 +1502,17 @@ async def auth_status():
 
 @app.get("/health")
 async def health():
+    import asyncio as _aio
     ok, info = True, {}
     try:
-        cred = ensure_creds()
+        cred = await _aio.to_thread(ensure_creds)   # 同上：可能含同步续期
         info = {"expires": cred.get("expiration")}
     except Exception as e:  # noqa: BLE001
         ok, info = False, {"error": str(e)[:200]}
     return {"ok": ok, "service": "codearts2openai", "configured": ok,
-            "models": _exposed(), "credential": info}
+            "models": _exposed(), "credential": info,
+            "station": await _aio.to_thread(_current_station),
+            "pool": await _aio.to_thread(_pool_state)}
 
 
 @app.get("/v1/models")
@@ -700,8 +1556,19 @@ async def chat_completions(req: Request):
                 try:
                     # requests 流式（TLS 指纹原因，不用 httpx）
                     import asyncio as _aio
-                    q: asyncio.Queue = _aio.Queue()
+                    loop = _aio.get_running_loop()
+                    q: _aio.Queue = _aio.Queue()
                     err = {}
+
+                    def _push(item):
+                        """把 chunk 从 worker 线程安全投递给事件循环。
+
+                        `asyncio.Queue` **不是线程安全的**：在别的线程直接
+                        `q.put_nowait()`，唤不醒阻塞在 `await q.get()` 的事件
+                        循环 → 请求永久挂住（现象：流式对话一直不返回）。
+                        必须经 `loop.call_soon_threadsafe` 投递。
+                        """
+                        loop.call_soon_threadsafe(q.put_nowait, item)
 
                     def _run():
                         try:
@@ -713,16 +1580,21 @@ async def chat_completions(req: Request):
                                 else:
                                     for chunk in resp.iter_content(chunk_size=4096):
                                         if chunk:
-                                            q.put_nowait(chunk)
+                                            _push(chunk)
                         except Exception as e:  # noqa: BLE001
                             err["exc"] = str(e)
                         finally:
-                            q.put_nowait(None)
+                            _push(None)
 
                     import threading as _th
                     _th.Thread(target=_run, daemon=True).start()
                     while True:
-                        chunk = await q.get()
+                        try:
+                            # 看门狗：上游卡住不吐字节时别让客户端无限等
+                            chunk = await _aio.wait_for(q.get(), timeout=900)
+                        except _aio.TimeoutError:
+                            err["exc"] = "upstream idle timeout (900s)"
+                            break
                         if chunk is None:
                             break
                         yield chunk
@@ -739,7 +1611,11 @@ async def chat_completions(req: Request):
                     yield b"data: [DONE]\n\n"
 
             return StreamingResponse(gen(), media_type="text/event-stream")
-        status, data = _chat_upstream(model, msgs, max_tokens, tools, tool_choice)
+        # 非流式：`_chat_upstream` 内部是同步 requests（TLS 指纹要求），
+        # 必须丢到线程，否则整个事件循环被上游耗时卡住（timeout=900）。
+        import asyncio as _aio
+        status, data = await _aio.to_thread(
+            _chat_upstream, model, msgs, max_tokens, tools, tool_choice)
         return JSONResponse(content=data, status_code=status)
     except httpx.HTTPError as e:
         return JSONResponse({"error": {"message": f"upstream error: {e}", "type": "upstream_error"}},
@@ -750,14 +1626,20 @@ async def chat_completions(req: Request):
 
 @app.get("/v1/balance")
 async def balance():
-    try:
+    import asyncio as _aio
+
+    def _sync():
+        # 取凭证可能含 STS 续期 + 同步 httpx，整块放线程，别卡事件循环
         cred = ensure_creds(prefer="ticket")
         url = OPENGW + "/api/v1/user/tokens/balance"
         raw = b""
         base = {"X-Security-Token": cred["security_token"], "Content-Type": "application/json"}
         headers = _sign(cred["access_key_id"], cred["secret_access_key"], "GET", url, base, raw)
         with httpx.Client(timeout=20) as c:
-            r = c.get(url, headers=headers)
+            return c.get(url, headers=headers)
+
+    try:
+        r = await _aio.to_thread(_sync)
         body = r.json()
         if body.get("error_code") != "0000":
             return JSONResponse({"ok": False, "error": body.get("error_msg")}, status_code=502)
@@ -770,14 +1652,19 @@ async def balance():
 
 @app.post("/v1/claim")
 async def claim():
-    try:
+    import asyncio as _aio
+
+    def _sync():
         cred = ensure_creds(prefer="ticket")
         url = OPENGW + "/api/v1/benefit/claim"
         raw = b"{}"
         base = {"X-Security-Token": cred["security_token"], "Content-Type": "application/json"}
         headers = _sign(cred["access_key_id"], cred["secret_access_key"], "POST", url, base, raw)
         with httpx.Client(timeout=20) as c:
-            r = c.post(url, content=raw, headers=headers)
+            return c.post(url, content=raw, headers=headers)
+
+    try:
+        r = await _aio.to_thread(_sync)
         body = r.json()
         if body.get("error_code") != "0000":
             return JSONResponse({"ok": False, "error": body.get("error_msg")}, status_code=502)
