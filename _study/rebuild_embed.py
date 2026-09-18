@@ -41,6 +41,17 @@ TARGET = REPO / "BuddyZGateway.py"
 CHUNK = 100
 
 
+def _norm_eol(b: bytes) -> bytes:
+    """行尾归一化：CRLF / 裸 CR → LF。
+
+    为什么必须做：仓库里存的是 LF，而 Windows 侧（本地 autocrlf=true、
+    CI 的 windows runner）检出后是 CRLF —— 直接比字节会让 `--check` 在 CI 上
+    永远报「N 个条目待更新」（假阳性，实测 6 个）。Python 源码本身与行尾无关，
+    归一化后再比才等于「内容是否真的变了」。
+    """
+    return b.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
 def load_manifest(text: str) -> tuple[dict[str, list[str]], int, int]:
     """返回 ({key: [chunk...]}, start_idx, end_idx)，按行索引。"""
     lines = text.split("\n")
@@ -129,7 +140,8 @@ def main() -> int:
             continue
         old = base64.b64decode("".join(man[key])) if man[key] else b""
         new = src.read_bytes()
-        if old == new:
+        # 行尾无关比较（见 _norm_eol 的说明）：只有**内容**变了才算需要重嵌
+        if _norm_eol(old) == _norm_eol(new):
             print(f"  = {key}  ({len(new)} 字节，未变)")
             continue
         changed.append(key)
