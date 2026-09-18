@@ -22,6 +22,17 @@ import re
 import sys
 from pathlib import Path
 
+# 控制台编码兜底：CI（windows-latest 的 stdout 是 cp1252）与部分本地终端
+# 无法输出中文，会让脚本在**第一行 print 就崩**
+# （UnicodeEncodeError: 'charmap' codec can't encode characters）。
+# 而 build.yml 里那句 `--check` 曾带 `|| true`，把崩溃静默吞掉 ——
+# 于是「验证内嵌清单是否同步」这一步其实一直在空转（真实踩过）。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001  非 TTY / 已重定向的流可能不支持
+        pass
+
 HERE = Path(__file__).resolve().parent          # _study/
 REPO = HERE.parent                              # 仓库根
 TARGET = REPO / "BuddyZGateway.py"
@@ -136,7 +147,9 @@ def main() -> int:
         return 0
     if args.check:
         print(f"[--check] 需要更新 {len(changed)} 个条目，未写入。")
-        return 0
+        # 返回 1：让 CI 的「验证内嵌是否同步」成为真正的门禁。
+        # 不同步 = exe 里跑的是旧的模块代码（PyInstaller 用的是 _EMBEDDED），必须拦。
+        return 1
 
     key_order = list(man)
     spans = {}

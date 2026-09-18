@@ -42,7 +42,9 @@ jobs:
 
       - name: Verify embedded manifest is in sync with _study/
         shell: bash
-        run: python _study/rebuild_embed.py --check || true
+        # 不再带 `|| true`：不同步 = exe 里跑的是旧的模块代码（PyInstaller 用的是
+        # _EMBEDDED），必须拦下来。脚本已做 UTF-8 兜底，CP1252 控制台也能正常输出。
+        run: python _study/rebuild_embed.py --check
 
       - name: Build exe
         shell: bash
