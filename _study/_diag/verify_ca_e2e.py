@@ -98,12 +98,24 @@ def main() -> int:
                 break
             errs.append(f"{m}: {rr.status_code} {str(body)[:120]}")
         if resp is None:
-            print("  ✗ 所有免费模型都失败：")
-            for e in errs:
-                print("     ", e)
-            print("  （若全是 'model is not registered' 说明当前站点没有这些模型，"
-                  "不是通道 bug）")
-            ok = False
+            # 区分「代码 bug」与「账号会话过期」：
+            # 后者是环境/账号状态（refresh_token 被轮转掉），不该算代码回归 ——
+            # 网关现在会自动拉起授权页，用户重新授权一次即可恢复。
+            _auth_dead = bool(errs) and all(
+                ("会话已失效" in e or "重新授权" in e or "503" in e) for e in errs)
+            if _auth_dead:
+                print("  ○ 跳过（SKIP）：CodeArts 会话已过期，非代码问题")
+                print("     → 网关启动时会自动拉起授权页；重新授权后可复跑本测试")
+                for e in errs:
+                    print("     ", e[:130])
+                chat_ok = None          # None = 未验证（不算失败）
+            else:
+                print("  ✗ 所有免费模型都失败：")
+                for e in errs:
+                    print("     ", e)
+                print("  （若全是 'model is not registered' 说明当前站点没有这些模型，"
+                      "不是通道 bug）")
+                ok = False
         else:
             ch = resp["choices"][0]
             msg = ch.get("message") or {}

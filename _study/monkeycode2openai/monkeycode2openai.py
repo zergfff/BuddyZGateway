@@ -865,6 +865,18 @@ def auto_configure(log=print):
 # 轻量日志
 # ---------------------------------------------------------------------------
 
+def needs_login() -> bool:
+    """当前是否缺少可用凭据（需去桌面端登录）。"""
+    # 有 ohmyagent-key 或 桌面端 config.json 里有有效 base_url/api_key 即可用
+    oma = find_ohmyagent_key()
+    if oma:
+        return False
+    b, k = _load_from_desktop()
+    if b and k:
+        return False
+    return True
+
+
 def _log(line: str):
     lp = CONFIG.get("log_path")
     if not lp:

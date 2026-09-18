@@ -43,6 +43,8 @@ ns = {"tk": tk, "ttk": ttk, "scale": 1.0, "root": None,
       "save_settings": save_settings,
       "probe_model_tools": probe_model_tools,
       "mc_model_caps": ns_gui["mc_model_caps"],
+      # models_dialog 现在会给活动标签加【】后缀
+      "model_badges_map": lambda k: {},
       "mc_port": SimpleNamespace(get=lambda: "9000"),
       "ui": lambda fn, *a: UIQ.append((fn, a)),   # 真 app 是把回调投给 Tk 线程(pump)
       "threading": __import__("threading"),

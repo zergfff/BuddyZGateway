@@ -27,6 +27,7 @@ import os
 import sys
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -530,6 +531,300 @@ def credits(authorization: Optional[str] = Header(default=None),
                      "used": u, "unit": p.get("CapacityUnit")})
     return {"remain": remain, "total": total, "used": used,
             "is_paid_user": bool(data.get("IsPaidUser")), "packages": pkgs}
+
+
+@app.get("/v1/checkin")
+def checkin_status(authorization: Optional[str] = Header(default=None),
+                   x_api_key: Optional[str] = Header(default=None, alias="X-Api-Key")):
+    """查今日签到/活动状态：POST {backend}/v2/billing/meter/checkin-activity-status"""
+    _check_auth(authorization, x_api_key)
+    cred = _cred()
+    headers = cred.get_headers()
+    headers["Accept-Language"] = "zh"
+    url = f"{cred.get_backend()}/v2/billing/meter/checkin-activity-status"
+    try:
+        with httpx.Client(timeout=20) as c:
+            r = c.post(url, headers=headers, json={})
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"upstream error: {e}") from None
+    try:
+        body = r.json()
+    except Exception:
+        raise HTTPException(status_code=502, detail=r.text[:300]) from None
+    if body.get("code") != 0:
+        raise HTTPException(status_code=502,
+                            detail=f"upstream code={body.get('code')} msg={body.get('msg')}")
+    return {"ok": True, "data": body.get("data") or {}}
+
+
+@app.post("/v1/checkin")
+def checkin_claim(authorization: Optional[str] = Header(default=None),
+                  x_api_key: Optional[str] = Header(default=None, alias="X-Api-Key")):
+    """执行每日签到：POST {backend}/v2/billing/meter/daily-checkin"""
+    _check_auth(authorization, x_api_key)
+    cred = _cred()
+    headers = cred.get_headers()
+    headers["Accept-Language"] = "zh"
+    url = f"{cred.get_backend()}/v2/billing/meter/daily-checkin"
+    try:
+        with httpx.Client(timeout=30) as c:
+            r = c.post(url, headers=headers, json={})
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"upstream error: {e}") from None
+    try:
+        body = r.json()
+    except Exception:
+        raise HTTPException(status_code=502, detail=r.text[:300]) from None
+    code = body.get("code")
+    # 上游对「今天已领过」也返回非 0（幂等）；把 msg 原样带回去，由 GUI 判定
+    return {"ok": code == 0, "code": code, "msg": body.get("msg") or "",
+            "data": body.get("data") or {}}
+
+
+def _checkin_headers(cred) -> dict:
+    h = cred.get_headers()
+    h["Accept-Language"] = "zh"
+    return h
+
+
+def claim_for_station(station: str) -> dict:
+    """**按站点**执行签到，不经过本地服务、不改 CONFIG。
+
+    这样 GUI 可以一次把国内/国际两个账号各领一次，互不干扰。
+
+    返回 {ok, station, already?, credit?, streak?, error?}
+    """
+    out = {"ok": False, "station": station, "already": False, "credit": 0,
+           "streak": 0, "error": ""}
+    af = find_auth_file(station)
+    if af is None:
+        out["error"] = "未登录（找不到该版本的 auth 文件）"
+        return out
+    try:
+        cred = CredentialManager(af)
+        headers = _checkin_headers(cred)
+        base = cred.get_backend()
+    except Exception as e:  # noqa: BLE001
+        out["error"] = f"读取凭据失败: {e}"
+        return out
+    try:
+        with httpx.Client(timeout=25) as c:
+            # ① 查状态
+            try:
+                r = c.post(f"{base}/v2/billing/meter/checkin-activity-status",
+                           headers=headers, json={})
+                st = r.json()
+            except Exception as e:  # noqa: BLE001
+                out["error"] = f"查询签到状态失败: {e}"
+                return out
+            d = (st.get("data") or {}) if st.get("code") == 0 else {}
+            if d.get("today_checked_in"):
+                out.update({"ok": True, "already": True,
+                            "credit": d.get("today_credit") or 0,
+                            "streak": d.get("streak_days") or 0})
+                return out
+            # ② 领
+            try:
+                r2 = c.post(f"{base}/v2/billing/meter/daily-checkin",
+                            headers=headers, json={})
+                res = r2.json()
+            except Exception as e:  # noqa: BLE001
+                out["error"] = f"签到请求失败: {e}"
+                return out
+    except Exception as e:  # noqa: BLE001
+        out["error"] = f"签到请求异常: {e}"
+        return out
+
+    data = res.get("data") or {}
+    if res.get("code") == 0 or "credit" in data:
+        out.update({"ok": True, "credit": data.get("credit") or 0,
+                    "streak": data.get("streak_days") or 0,
+                    "msg": str(res.get("msg") or "")})
+        return out
+    msg = str(res.get("msg") or "")
+    # 幂等：上游对「今天已经领过」会返回非 0，措辞有几种，收紧匹配避免把
+    # 真错误（如「活动已结束」）误判成已领取。
+    if any(k in msg for k in ("已签到", "已领取", "已领过", "已参与",
+                              "重复", "already checked", "already claimed")):
+        out.update({"ok": True, "already": True, "msg": msg})
+        return out
+    out["msg"] = msg
+    out["error"] = f"upstream code={res.get('code')} msg={msg}"
+    return out
+
+
+def checkin_status_for_station(station: str) -> dict:
+    """**按站点**查签到状态（不发起领取）。返回 {ok, today_checked_in, streak_days,
+    daily_credit, today_credit, active, error}。"""
+    af = find_auth_file(station)
+    if af is None:
+        return {"ok": False, "error": "未登录"}
+    try:
+        cred = CredentialManager(af)
+        headers = _checkin_headers(cred)
+        base = cred.get_backend()
+        with httpx.Client(timeout=20) as c:
+            r = c.post(f"{base}/v2/billing/meter/checkin-activity-status",
+                       headers=headers, json={})
+            body = r.json()
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    if body.get("code") != 0:
+        return {"ok": False, "error": f"code={body.get('code')} msg={body.get('msg')}"}
+    d = body.get("data") or {}
+    return {"ok": True, "active": bool(d.get("active")),
+            "today_checked_in": bool(d.get("today_checked_in")),
+            "streak_days": d.get("streak_days") or 0,
+            "daily_credit": d.get("daily_credit") or 0,
+            "today_credit": d.get("today_credit") or 0}
+
+
+# ---------------------------------------------------------------------------
+# 模型徽章 / 优惠标签（**仅用于界面展示**，内部模型名不变）
+#
+# 数据源：WorkBuddy 桌面端缓存的远端产品配置
+#   ~/.workbuddy/cache/acc-product-config-v3.json
+# 其中两处会产出徽章：
+#   · models[].tags 里的 "badge:<标签>:<hex颜色>"
+#   · 顶层 modelPromotions[]（带 schedule 时段 / validFrom-validUntil 区间、
+#     badge.label 文案、discount.discountedCredits 折扣倍率）
+# 桌面端自己的规则：活动徽章带时间调度与折扣语义，优先于 tags 侧同名项。
+# ---------------------------------------------------------------------------
+
+WB_CONFIG_CACHE = Path.home() / ".workbuddy" / "cache" / "acc-product-config-v3.json"
+
+# 北京时间（中国无夏令时，固定 +08:00）
+_CST = timezone(timedelta(hours=8))
+
+
+def load_product_config() -> dict:
+    """读桌面端缓存的远端产品配置；读不到返回 {}。"""
+    try:
+        return json.loads(WB_CONFIG_CACHE.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _parse_hhmm(s: str) -> int | None:
+    """'23:00' -> 分钟数；非法返回 None。"""
+    try:
+        h, m = str(s).split(":")
+        return int(h) * 60 + int(m)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def promotions_for(model_id: str, cfg: dict | None = None) -> list:
+    """返回该模型当前**命中**的推广活动（已按 schedule 过滤），按 priority 降序。"""
+    cfg = cfg if cfg is not None else load_product_config()
+    now = datetime.now(_CST)
+    now_min = now.hour * 60 + now.minute
+    out = []
+    for p in (cfg.get("modelPromotions") or []):
+        if not isinstance(p, dict) or not p.get("enabled", True):
+            continue
+        ids = p.get("modelIds") or []
+        if model_id not in ids:
+            continue
+        sch = p.get("schedule") or {}
+        ok = True
+        # 绝对区间
+        vf, vu = sch.get("validFrom"), sch.get("validUntil")
+        try:
+            if vf and now < datetime.fromisoformat(str(vf).replace("Z", "+00:00")):
+                ok = False
+            if vu and now > datetime.fromisoformat(str(vu).replace("Z", "+00:00")):
+                ok = False
+        except Exception:  # noqa: BLE001
+            pass
+        # 每日时段（可跨零点）
+        daily = sch.get("daily") or []
+        if ok and daily:
+            hit = False
+            for w in daily:
+                s = _parse_hhmm((w or {}).get("start"))
+                e = _parse_hhmm((w or {}).get("end"))
+                if s is None or e is None:
+                    continue
+                if s <= e:
+                    hit = hit or (s <= now_min < e)
+                else:                      # 跨零点，如 23:00 → 7:50
+                    hit = hit or (now_min >= s or now_min < e)
+            ok = ok and hit
+        if ok:
+            out.append(p)
+    out.sort(key=lambda x: x.get("priority") or 0, reverse=True)
+    return out
+
+
+def badge_labels(cfg: dict | None = None) -> dict:
+    """{模型内部名: [展示标签, ...]}。
+
+    标签形如 "夜间折扣 0.50x" / "限时免费"；只用于 GUI 显示，
+    内部发请求时仍用**原始模型名**（resolve_model 不受影响）。
+    """
+    cfg = cfg if cfg is not None else load_product_config()
+    models = cfg.get("models") or []
+    out: dict = {}
+
+    # ① 活动徽章（带折扣语义，优先）
+    promo_by_model: dict = {}
+    for m in models:
+        if not isinstance(m, dict):
+            continue
+        mid = m.get("id")
+        if not mid:
+            continue
+        labels = []
+        for p in promotions_for(mid, cfg):
+            b = p.get("badge") or {}
+            lab = (b.get("label") or "").strip()
+            d = p.get("discount") or {}
+            dc = (d.get("discountedCredits") or "").strip()
+            # badge.display == "activeOnly" 时只在活动进行中显示——
+            # promotions_for 已按 schedule 过滤，命中即进行中
+            if lab and dc:
+                labels.append(f"{lab} {dc}")
+            elif lab:
+                labels.append(lab)
+        if labels:
+            promo_by_model[mid] = labels
+
+    # ② tags 里的 badge:<label>:<color>（活动同名的剔除，与桌面端一致）
+    for m in models:
+        if not isinstance(m, dict):
+            continue
+        mid = m.get("id")
+        if not mid:
+            continue
+        tag_labels = []
+        for t in (m.get("tags") or []):
+            if not isinstance(t, str) or not t.startswith("badge:"):
+                continue
+            rest = t[6:]
+            i = rest.rfind(":")
+            lab = (rest[:i] if i > 0 else rest).strip()
+            if lab and lab not in tag_labels:
+                tag_labels.append(lab)
+        promo_labels = promo_by_model.get(mid) or []
+        promo_plain = {x.split(" ")[0].lower() for x in promo_labels}
+        tag_labels = [x for x in tag_labels if x.lower() not in promo_plain]
+        merged = promo_labels + tag_labels
+        if merged:
+            out[mid] = merged
+    return out
+
+
+@app.get("/v1/model_badges")
+def model_badges(authorization: Optional[str] = Header(default=None),
+                 x_api_key: Optional[str] = Header(default=None, alias="X-Api-Key")):
+    """模型展示标签（仅界面用）。键=显示名，值=标签数组，方便 GUI 直接匹配。"""
+    _check_auth(authorization, x_api_key)
+    raw = badge_labels()
+    return {"badges": raw,
+            "by_display": {display_of(k): v for k, v in raw.items()},
+            "source": str(WB_CONFIG_CACHE),
+            "cache_exists": WB_CONFIG_CACHE.is_file()}
 
 
 @app.post("/v1/chat/completions")

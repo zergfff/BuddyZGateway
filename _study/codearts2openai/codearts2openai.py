@@ -23,6 +23,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import sys
 import threading as _th
 import time
@@ -130,6 +131,105 @@ PORTAL_CN = "https://codearts.huaweicloud.com"
 PORTAL_INTL = "https://codearts.ap-southeast-1.huaweicloud.com"
 APP_VERSION = "26.8.300"
 
+# ---------------------------------------------------------------------------
+# 授权身份（client_id / uri_scheme / plugin-name）
+#
+# ⚠ **这是「浏览器里授权成功了，但网关一直换不到票、必须开着桌面端才行」的根因。**
+#   授权与换票必须用**同一套身份**，portal 会把票绑到该身份的会话上：
+#     桌面端      client_id=codearts-agent，plugin-name=snap_AIIDE
+#     VS Code 插件 client_id=vscode-codebot，  plugin-name=snap_vscode
+#   本机有效的凭据库是 VS Code 插件，却拿桌面端身份去授权 → 票绑在桌面端会话上，
+#   网关怎么轮询都换不到（表现为"必须打开桌面端"）。
+#
+# 取证（插件 out/extension.js 的 WebLoginStrategy.openAuthorizeUrl）：
+#   `&uri_scheme=${encodeURIComponent(r9())}&client_id=${encodeURIComponent(r9())}
+#    &port=${w}&code_challenge=…&ticket_id=${A}&auth_callback_url=${x}
+#    &plugin-name=${qf()}_vscode&plugin-version=${nn(!1)}`
+#   r9() = i5s() = package.json 的 name（缺省 "vscode-codebot"）
+#   qf() = isInnerVersion ? "codemate" : "snap"   → plugin-name = snap_vscode
+#   nn(false) = 插件版本号（不带 "Vscode_" 前缀）
+# ---------------------------------------------------------------------------
+IDENTITIES = {
+    "desktop": {"label": "CodeArts 桌面端",
+                "client_id": "codearts-agent", "uri_scheme": "codearts-agent",
+                "plugin_name": "snap_AIIDE", "plugin_version": "5.3.0"},
+    "vscode": {"label": "VS Code 插件",
+               "client_id": "vscode-codebot", "uri_scheme": "vscode-codebot",
+               "plugin_name": "snap_vscode", "plugin_version": ""},
+}
+CONFIG_IDENTITY = ""        # 显式指定："" = 自动（跟随凭据来源）| desktop | vscode
+
+# VS Code 插件安装目录（读真实版本号用；授权 URL 要带对版本）
+_VSCODE_EXT_GLOB = "huaweicloud.vscode-codebot-*"
+
+
+def _vscode_ext_dir() -> Path | None:
+    """已安装的 vscode-codebot 扩展目录（取版本最高的那个）。"""
+    roots = [Path.home() / ".vscode" / "extensions",
+             Path.home() / ".vscode-insiders" / "extensions",
+             Path.home() / ".vscode-oss" / "extensions"]
+    best_dir: Path | None = None
+    best_key: tuple = (-1,)
+    for r in roots:
+        try:
+            for d in r.glob(_VSCODE_EXT_GLOB):
+                if not d.is_dir():
+                    continue
+                k = _ver_key(d.name)
+                if k > best_key:
+                    best_key, best_dir = k, d
+        except Exception:  # noqa: BLE001
+            continue
+    return best_dir
+
+
+def _ver_key(name: str) -> tuple:
+    """从目录名尾部取版本，转成可比较的元组。"""
+    try:
+        tail = name.rsplit("-", 1)[-1]
+        return tuple(int(x) for x in re.findall(r"\d+", tail))
+    except Exception:  # noqa: BLE001
+        return (0,)
+
+
+def _vscode_ext_version() -> str:
+    """插件版本号（授权 URL / 换票头里要带真实值；拿不到就留空）。"""
+    d = _vscode_ext_dir()
+    if not d:
+        return ""
+    try:
+        import json as _j
+        pkg = _j.loads((d / "package.json").read_text(encoding="utf-8"))
+        return str(pkg.get("version") or "")
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def current_identity() -> dict:
+    """当前该用哪套授权身份。
+
+    优先级：显式配置（CONFIG["identity"] / CONFIG_IDENTITY）> 有 VS Code 凭据库
+    就用 vscode > 桌面端。**必须与凭据来源一致**，否则授权换不到票。
+    """
+    explicit = (CONFIG.get("identity") or CONFIG_IDENTITY or "").strip()
+    if explicit in IDENTITIES:
+        ident = dict(IDENTITIES[explicit])
+    else:
+        ident = dict(IDENTITIES["desktop"])
+        try:
+            for label, _sess in _bootstrap_all_cached():
+                if "VS Code" in label or "codebot" in label.lower():
+                    ident = dict(IDENTITIES["vscode"])
+                    break
+        except Exception:  # noqa: BLE001
+            pass
+    ident = ident or {}
+    if ident.get("plugin_name") == "snap_vscode":
+        v = _vscode_ext_version()
+        if v:
+            ident["plugin_version"] = v
+    return ident
+
 
 def _snap(station: str | None = None) -> str:
     """本站点的对话域。station: china | international，缺省读当前判定。"""
@@ -164,11 +264,15 @@ def _state_file() -> Path | None:
 
 def _load_state() -> dict:
     fp = _state_file()
-    if fp and fp.is_file():
-        try:
-            return json.loads(fp.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+    # 主文件 → 备份：主文件损坏/被截断时用备份兜底（轮转 token 丢了就得重登）
+    for cand in (fp, (fp.with_suffix(".bak") if fp else None)):
+        if cand and cand.is_file():
+            try:
+                d = json.loads(cand.read_text(encoding="utf-8"))
+                if isinstance(d, dict) and d:
+                    return d
+            except Exception:
+                continue
     # 兼容早期 Temp 轮转文件
     tmp = Path(os.environ.get("LOCALAPPDATA", "")) / "Temp" / "ca_state.json"
     try:
@@ -179,14 +283,49 @@ def _load_state() -> dict:
     return {}
 
 
-def _save_state(st: dict):
+def _save_state(st: dict) -> bool:
+    """原子写 + 备份。
+
+    为什么必须这样做：**refresh_token 是单次有效的**，用掉即轮转，
+    新值只存在这一份文件里。原来的 `write_text` 一但写到一半被中断
+    （进程被杀、杀软占用、磁盘满），旧 token 已失效、新 token 又没落地
+    → 只能重新登录。备份能在主文件损坏时兜回来。
+
+    返回是否落盘成功（失败会打日志，不再静默吞掉）。
+    """
     fp = _state_file()
     if not fp:
-        return
+        _log("[ca] 状态未落盘：BUDDYZ_DATA_DIR 未设置")
+        return False
     try:
-        fp.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
-    except OSError:
-        pass
+        fp.parent.mkdir(parents=True, exist_ok=True)
+        # ① 先把当前文件备份一份（只备份能解析的，避免把损坏内容也备份进去）
+        if fp.is_file() and fp.stat().st_size > 0:
+            try:
+                json.loads(fp.read_text(encoding="utf-8"))
+                shutil.copy2(fp, fp.with_suffix(".bak"))
+            except Exception:  # noqa: BLE001
+                pass
+        # ② 写临时文件 → 原子替换（Windows 上 os.replace 是原子的）
+        tmp = fp.with_suffix(".tmp")
+        tmp.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, fp)
+        return True
+    except OSError as e:
+        _log(f"[ca] 状态落盘失败（旧值仍保留在文件里）：{e}")
+        return False
+
+
+def _state_patch(**updates) -> bool:
+    """只合并指定键（在 state 锁内调用）。
+
+    原来各处都是「整体读 → 改 → 整体写」，主会话与号池共用一份文件时
+    容易互相覆盖：A 线程刷新完主会话写回，B 线程手里还是只含 pool 的旧快照，
+    再写一次就把主会话**冲掉了**。用 patch 语义 + 原子写规避。
+    """
+    st = _load_state()
+    st.update(updates)
+    return _save_state(st)
 
 
 # ---------------------------------------------------------------------------
@@ -359,6 +498,13 @@ def _read_store_session(store: dict) -> dict | None:
               "expires_at": sess.get("expiresAt", ""),
               "login_name": sess.get("name", ""),
               "source": store["label"],
+              # ⚠ 每条会话**必须记住自己是用哪个 client_id 换来的**：
+              #   refresh_token 是绑身份的，拿桌面端 client_id 去续 VS Code 插件
+              #   那条 token，STS 会回 `STS5.1806 invalid refresh token:
+              #   'invalid client id'`（日志里真实刷过一大片）。
+              "identity": "vscode" if store.get("match") == "codebot" else "desktop",
+              "client_id": IDENTITIES["vscode" if store.get("match") == "codebot"
+                                      else "desktop"]["client_id"],
               "station": _store_station(store)}
         if st["refresh_token"] and st["dpop_priv"]:
             return st
@@ -393,6 +539,34 @@ def _bootstrap_all_cached() -> list:
     _STORE_CACHE["ts"] = now
     _STORE_CACHE["items"] = items
     return items
+
+
+def store_fingerprint() -> float:
+    """凭证库「最近被写过」的时间（候选库里 vscdb mtime 的最大值）。
+
+    为什么要它：桌面端/VS Code 插件登录时都会**重写** state.vscdb，mtime 变大。
+    而 cred_status() 只看内存凭据与自家的 ca_codearts.json —— 光靠它永远发现不了
+    「用户刚刚登录完成」这件事（实测踩过：桌面端登录成功了，网关还在原地等，
+    最后超时把窗口关掉，用户以为没生效）。
+    """
+    best = 0.0
+    try:
+        for st in _session_stores():
+            try:
+                best = max(best, Path(st["vscdb"]).stat().st_mtime)
+            except OSError:
+                pass
+    except Exception:  # noqa: BLE001
+        pass
+    return best
+
+
+def has_store_session() -> bool:
+    """凭证库里现在能不能解出登录态（DPAPI 解密 + sqlite 读，实时不做缓存）。"""
+    try:
+        return bool(_bootstrap_all())
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _bootstrap_from_desktop() -> dict | None:
@@ -477,14 +651,16 @@ def _locked_state_update(fn):
 
 def _do_refresh(st: dict):
     proof = _dpop_jwt(st["dpop_priv"], st["dpop_pub"], "POST", STS)
+    _cid = st.get("client_id") or CLIENT_ID      # 必须与签发该 token 的身份一致
     with httpx.Client(timeout=30) as c:
-        r = c.post(STS, data={"client_id": CLIENT_ID, "code_verifier": st["verifier"],
+        r = c.post(STS, data={"client_id": _cid, "code_verifier": st["verifier"],
                               "grant_type": "refresh_token", "refresh_token": st["refresh_token"]},
                    headers={"DPoP": proof, "Content-Type": "application/x-www-form-urlencoded"})
     body = r.json()
     if r.status_code != 200 or "credentials" not in body:
         raise RuntimeError(f"refresh 失败({r.status_code}): {str(body)[:200]}")
     st["last"] = body  # 含新 refresh_token（轮转）
+    st["client_id"] = _cid          # 记住身份，下次续期仍用它
     _save_state(st)
     _log("[ca] 会话已续期")
     return body["credentials"]
@@ -501,6 +677,7 @@ def _dpop_candidates() -> list:
     if st.get("refresh_token") and st.get("dpop_priv"):
         cands.append({"refresh_token": st["refresh_token"], "dpop_priv": st["dpop_priv"],
                       "dpop_pub": st["dpop_pub"], "verifier": st.get("verifier", ""),
+                      "client_id": st.get("client_id") or CLIENT_ID,
                       "save_to": "data", "label": "data-state"})
     stores = _bootstrap_all_cached()
     # Temp 轮转文件（token） + 最新凭证库 loginContext（密钥）
@@ -513,6 +690,7 @@ def _dpop_candidates() -> list:
                 cands.append({"refresh_token": tj["refresh_token"],
                               "dpop_priv": s0.get("dpop_priv"), "dpop_pub": s0.get("dpop_pub"),
                               "verifier": s0.get("verifier", ""),
+                              "client_id": s0.get("client_id") or CLIENT_ID,
                               "save_to": "data", "label": "temp+" + label0})
     except Exception:
         pass
@@ -521,6 +699,7 @@ def _dpop_candidates() -> list:
             cands.append({"refresh_token": sess["refresh_token"],
                           "dpop_priv": sess["dpop_priv"], "dpop_pub": sess["dpop_pub"],
                           "verifier": sess.get("verifier", ""),
+                          "client_id": sess.get("client_id") or CLIENT_ID,
                           "save_to": "data", "label": label})
     # 去重（同一 token 只试一次）
     seen, out = set(), []
@@ -766,8 +945,9 @@ def _refresh_candidate(cand: dict) -> tuple:
     避免池条目的新 token 盖掉主会话、或反之。
     """
     proof = _dpop_jwt(cand["dpop_priv"], cand["dpop_pub"], "POST", STS)
+    _cid = cand.get("client_id") or CLIENT_ID    # 同上：跟签发身份走
     with httpx.Client(timeout=30) as c:
-        r = c.post(STS, data={"client_id": CLIENT_ID, "code_verifier": cand["verifier"],
+        r = c.post(STS, data={"client_id": _cid, "code_verifier": cand["verifier"],
                               "grant_type": "refresh_token",
                               "refresh_token": cand["refresh_token"]},
                    headers={"DPoP": proof, "Content-Type": "application/x-www-form-urlencoded"})
@@ -831,6 +1011,10 @@ def pool_harvest() -> dict:
                          "refresh_token": sess["refresh_token"],
                          "dpop_priv": sess["dpop_priv"], "dpop_pub": sess["dpop_pub"],
                          "verifier": sess.get("verifier", ""),
+                         # 身份必须随条目存下来，续期时用它（否则 STS 报
+                         # invalid client id）
+                         "identity": sess.get("identity", "desktop"),
+                         "client_id": sess.get("client_id", CLIENT_ID),
                          "station": station, "enabled": True,
                          "weight": 1, "priority": 0})
             known.add(sess["refresh_token"])
@@ -1022,8 +1206,9 @@ def ensure_creds(prefer: str = "dpop", conv_key: str | None = None) -> dict:
             for cand in _dpop_candidates():
                 try:
                     proof = _dpop_jwt(cand["dpop_priv"], cand["dpop_pub"], "POST", STS)
+                    _cid = cand.get("client_id") or CLIENT_ID
                     with httpx.Client(timeout=30) as c:
-                        r = c.post(STS, data={"client_id": CLIENT_ID, "code_verifier": cand["verifier"],
+                        r = c.post(STS, data={"client_id": _cid, "code_verifier": cand["verifier"],
                                               "grant_type": "refresh_token",
                                               "refresh_token": cand["refresh_token"]},
                                    headers={"DPoP": proof, "Content-Type": "application/x-www-form-urlencoded"})
@@ -1032,7 +1217,12 @@ def ensure_creds(prefer: str = "dpop", conv_key: str | None = None) -> dict:
                         st = _load_state()
                         st.update({"refresh_token": body.get("refresh_token", cand["refresh_token"]),
                                    "dpop_priv": cand["dpop_priv"], "dpop_pub": cand["dpop_pub"],
-                                   "verifier": cand["verifier"], "last": body})
+                                   "verifier": cand["verifier"],
+                                   "client_id": _cid,
+                                   "identity": cand.get("identity")
+                                   or ("vscode" if _cid == IDENTITIES["vscode"]["client_id"]
+                                       else "desktop"),
+                                   "last": body})
                         _save_state(st)
                         _log(f"[ca] DPoP 续期成功（{cand['label']}）")
                         cred = body["credentials"]
@@ -1059,7 +1249,145 @@ def ensure_creds(prefer: str = "dpop", conv_key: str | None = None) -> dict:
         raise RuntimeError("CodeArts 会话已失效：请在 CodeArts 桌面端或 VS Code 插件"
                            "（huaweicloud.vscode-codebot）登录一次，"
                            "或点面板「授权」重新授权（余额/签到用 ticket 链，对话用 DPoP 链）")
-    return _locked_state_update(_run)
+    cred = _locked_state_update(_run)
+    # 记住最近一次成功凭据，供 prewarm() 判断何时该提前续期
+    try:
+        remember_cred(cred)
+    except Exception:  # noqa: BLE001
+        pass
+    return cred
+
+
+# ---------------------------------------------------------------------------
+# 会话保活 & 自动授权（用户反馈：「每次登录都很麻烦，必须点登录 + 开桌面端」）
+# ---------------------------------------------------------------------------
+# 两个优化，目标是把「反复重登」降到「一次都不用管」：
+#   ① prewarm()   主动续期 —— 会话在网关运行期间一直保活，不会闲置到过期
+#   ② auto_login() 凭据失效时**自动**拉起授权页（免点「授权」按钮）
+# refresh_token 单次有效：只要没人用它就一直是有效的；一旦闲置过久/被别处用掉
+# 就失效了。所以「定期主动续」比「等用到再续」稳得多。
+
+_LAST_CRED: dict = {"cred": None, "at": 0.0}
+_CRED_LOCK = _th.Lock()
+_PREWARM_AT = [0.0]           # 上次尝试时间（节流，避免频繁打 STS）
+_PREWARM_MIN_INTERVAL = 120.0  # 两次续期尝试的最小间隔（秒）
+# 最近一次续期结果（供 GUI 显示"到底还能不能用"）
+_PREWARM_LAST: dict = {"ok": None, "action": "", "at": 0.0, "error": ""}
+
+
+def _expires_in(cred: dict | None) -> int:
+    """剩余有效秒数；解析不了返回 -1。"""
+    if not cred:
+        return -1
+    try:
+        exp = datetime.fromisoformat((cred.get("expiration") or "").replace("Z", "+00:00"))
+        return int((exp - datetime.now(timezone.utc)).total_seconds())
+    except Exception:  # noqa: BLE001
+        return -1
+
+
+def remember_cred(cred: dict | None) -> None:
+    """记住最近一次成功取得的凭据（内存，供保活判断是否该续期）。"""
+    if cred:
+        with _CRED_LOCK:
+            _LAST_CRED["cred"] = cred
+            _LAST_CRED["at"] = time.time()
+
+
+def prewarm(lead_seconds: int = 1200, force: bool = False) -> dict:
+    """主动续期：凭据剩余寿命不足 lead_seconds 时提前刷新一次。
+
+    返回 {ok, action: skip|refreshed|failed, expires_in, error}
+    """
+    now = time.time()
+    if not force and now - _PREWARM_AT[0] < _PREWARM_MIN_INTERVAL:
+        return {"ok": True, "action": "skip", "expires_in": _expires_in(_LAST_CRED.get("cred")), "error": ""}
+    with _CRED_LOCK:
+        cred = _LAST_CRED["cred"]
+    left = _expires_in(cred)
+    if cred and not force and left > lead_seconds:
+        _PREWARM_AT[0] = now
+        _PREWARM_LAST.update({"ok": True, "action": "skip",
+                              "at": now, "error": ""})
+        return {"ok": True, "action": "skip", "expires_in": left, "error": ""}
+    _PREWARM_AT[0] = now
+    try:
+        fresh = ensure_creds(prefer="ticket")
+        remember_cred(fresh)
+        _PREWARM_LAST.update({"ok": True, "action": "refreshed",
+                              "at": now, "error": ""})
+        return {"ok": True, "action": "refreshed",
+                "expires_in": _expires_in(fresh), "error": ""}
+    except Exception as e:  # noqa: BLE001
+        err = f"{type(e).__name__}: {e}"
+        _PREWARM_LAST.update({"ok": False, "action": "failed",
+                              "at": now, "error": err})
+        return {"ok": False, "action": "failed", "expires_in": -1,
+                "error": err}
+
+
+def cred_status() -> dict:
+    """**只读**凭据状态（不发任何网络请求），供 GUI 展示真实可用性。
+
+    与「文件里有没有 refresh_token」不同：这里反映的是**能不能真的用**
+    （最近一次续期成功没有 / 内存里的凭据还剩多久）。
+    """
+    with _CRED_LOCK:
+        cred = _LAST_CRED["cred"]
+        at = _LAST_CRED["at"]
+    left = _expires_in(cred)
+    st = _load_state()
+    fp = _state_file()
+    return {
+        "live": bool(cred) and left > 0,          # 手上真有可用凭据
+        "expires_in": left,                        # 剩余秒数（-1 = 未知）
+        "checked_at": at,
+        "has_session": bool(st.get("refresh_token")),
+        "has_ticket": bool((st.get("ticket") or {}).get("access")),
+        "last_ok": _PREWARM_LAST.get("ok"),        # None=还没试过
+        "last_action": _PREWARM_LAST.get("action", ""),
+        "last_at": _PREWARM_LAST.get("at", 0.0),
+        "last_error": _PREWARM_LAST.get("error", ""),
+        "writable": fp is not None,
+        "has_backup": bool(fp and fp.with_suffix(".bak").is_file()),
+    }
+
+
+def auto_login(port: int, station: str | None = None, open_browser: bool = True,
+               log=None) -> dict:
+    """凭据不可用时**自动**发起授权：生成 URL + 拉起浏览器，免点按钮。
+
+    返回 {ok, url, ticket_id, station, opened, error}
+    """
+    def _log(m):
+        if log:
+            log(m)
+    try:
+        info = build_authorize_url(port, station)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "url": "", "error": f"{type(e).__name__}: {e}"}
+    opened = False
+    if open_browser:
+        try:
+            import webbrowser
+            opened = bool(webbrowser.open(info["url"]))
+        except Exception as e:  # noqa: BLE001
+            _log(f"[ca] 拉起浏览器失败（请手动打开链接）：{e}")
+    _log(f"[ca] 已自动发起授权（{info['station']} · 身份 {info.get('identity', '?')}）："
+         f"{info['url']}")
+    return {"ok": True, "url": info["url"], "ticket_id": info["ticket_id"],
+            "station": info["station"], "opened": opened,
+            "identity": info.get("identity", ""),
+            "identity_key": info.get("identity_key", ""), "error": ""}
+
+
+def needs_login() -> bool:
+    """当前是否处于「必须重新登录」状态（所有凭据来源都不可用）。"""
+    try:
+        ensure_creds(prefer="ticket")
+        return False
+    except Exception:  # noqa: BLE001
+        return True
 
 
 def build_authorize_url(port: int, station: str | None = None) -> dict:
@@ -1070,25 +1398,29 @@ def build_authorize_url(port: int, station: str | None = None) -> dict:
     导致 `TM.00001001 无效ticketId` —— 无论轮询多久都救不了。
     """
     station = station or _current_station()
+    ident = current_identity()               # 身份必须与凭据来源一致
     verifier = _b64u(secrets.token_bytes(64))
     challenge = _b64u(hashlib.sha256(verifier.encode()).digest())
     ticket = str(uuid.uuid4())               # UUID v4，含连字符
     _OAUTH_PENDING[ticket] = {"verifier": verifier, "at": time.time(),
-                              "station": station}
-    params = {"theme": "dark", "locale": "zh-cn", "uri_scheme": CLIENT_ID,
-              "client_id": CLIENT_ID, "port": str(port),
+                              "station": station, "identity": ident}
+    params = {"theme": "dark", "locale": "zh-cn",
+              "uri_scheme": ident["uri_scheme"],
+              "client_id": ident["client_id"], "port": str(port),
               "code_challenge": challenge, "code_challenge_method": "S256",
               "ticket_id": ticket,
               # 官方插件会把本地回调地址一并带上（否则 portal 只能靠 port 猜），
               # 参数顺序也照抄插件，避免某些网关按序解析。
               "auth_callback_url": f"http://127.0.0.1:{port}/oauth/callback",
-              "plugin-name": PLUGIN_NAME, "plugin-version": PLUGIN_VERSION}
+              "plugin-name": ident["plugin_name"],
+              "plugin-version": ident["plugin_version"] or PLUGIN_VERSION}
     url = (_portal(station) + "/portal/authorize?"
            + "&".join(f"{k}={quote(v, safe='')}" for k, v in params.items()))
     if station == "international":
         # 插件：`t.globalState.get(Ch)==="international" && (I=`${I}&quickcompfalg=1`)`
         url += "&quickcompfalg=1"
-    return {"url": url, "ticket_id": ticket, "station": station}
+    return {"url": url, "ticket_id": ticket, "station": station,
+            "identity": ident["label"], "identity_key": ident.get("plugin_name")}
 
 
 # --- 换票是**轮询**语义（关键！） -------------------------------------------
@@ -1109,15 +1441,22 @@ PLUGIN_VERSION = "5.3.0"
 _AUTH_EXCHANGE: dict = {}
 
 
-def _ticket_get(ticket_id: str, secret: str, station: str | None = None) -> tuple:
-    """单次换票 → (credential|None, error_code, message)。网络异常不抛，转成 message。"""
+def _ticket_get(ticket_id: str, secret: str, station: str | None = None,
+                identity: dict | None = None) -> tuple:
+    """单次换票 → (credential|None, error_code, message)。网络异常不抛，转成 message。
+
+    identity：授权时用的那套身份。**必须与 build_authorize_url 用的一致** ——
+    portal 把票绑在发起授权的那个身份上，换票头里的 plugin-name 对不上就换不到
+    （历史现象：浏览器显示授权成功，网关一直换不到，必须开着桌面端）。
+    """
+    ident = identity or current_identity()
     try:
         with httpx.Client(timeout=30) as c:
             r = c.get(_snap(station) + "/snap-manager/v1/login/ticket",
                       params={"ticket_id": ticket_id, "secret": secret},
                       headers={"Content-Type": "application/json;charset=UTF-8",
-                               "plugin-name": PLUGIN_NAME,
-                               "plugin-version": PLUGIN_VERSION})
+                               "plugin-name": ident.get("plugin_name") or PLUGIN_NAME,
+                               "plugin-version": ident.get("plugin_version") or PLUGIN_VERSION})
     except Exception as e:  # noqa: BLE001
         return None, "", f"{type(e).__name__}: {str(e)[:120]}"
     try:
@@ -1133,7 +1472,7 @@ def _ticket_get(ticket_id: str, secret: str, station: str | None = None) -> tupl
 
 
 def _exchange_ticket(ticket_id: str, secret: str, station: str | None = None,
-                     log=None) -> dict:
+                     log=None, identity: dict | None = None) -> dict:
     """换票（**轮询**，见文件上方常量注释）。成功返回 credential，超时/致命错抛异常。
 
     注意：这会阻塞最长 TICKET_POLL_TIMEOUT 秒，**只能在线程里调**，
@@ -1142,7 +1481,7 @@ def _exchange_ticket(ticket_id: str, secret: str, station: str | None = None,
     t0, attempt, last = time.time(), 0, "未尝试"
     while True:
         attempt += 1
-        cred, code, msg = _ticket_get(ticket_id, secret, station)
+        cred, code, msg = _ticket_get(ticket_id, secret, station, identity)
         if cred is not None:
             return cred
         last = f"{code}: {msg}" if code else msg
@@ -1157,7 +1496,8 @@ def _exchange_ticket(ticket_id: str, secret: str, station: str | None = None,
         time.sleep(TICKET_POLL_INTERVAL)
 
 
-def _exchange_bg(ticket_ids: list, secret: str, station: str | None) -> None:
+def _exchange_bg(ticket_ids: list, secret: str, station: str | None,
+                 identity: dict | None = None) -> None:
     """后台轮询换票（语义见 TICKET_POLL_* 注释）。
 
     逐个候选 ticket_id 试（最新优先），任一轮成功即落盘并结束。
@@ -1167,15 +1507,14 @@ def _exchange_bg(ticket_ids: list, secret: str, station: str | None) -> None:
     while True:
         attempt += 1
         for tid in ticket_ids:
-            cred, code, msg = _ticket_get(tid, secret, station)
+            cred, code, msg = _ticket_get(tid, secret, station, identity)
             if cred is not None:
                 def _run(_c=cred):
-                    st = _load_state()
-                    st["ticket"] = {"access": _c.get("access"),
-                                    "secret": _c.get("secret"),
-                                    "securitytoken": _c.get("securitytoken", ""),
-                                    "expires_at": _c.get("expires_at")}
-                    _save_state(st)
+                    # patch 语义：只动 ticket 键，避免与其它写点互相覆盖
+                    _state_patch(ticket={"access": _c.get("access"),
+                                         "secret": _c.get("secret"),
+                                         "securitytoken": _c.get("securitytoken", ""),
+                                         "expires_at": _c.get("expires_at")})
 
                 try:
                     _locked_state_update(_run)
@@ -1414,12 +1753,15 @@ async def oauth_callback(req: Request):
                 # ⚠ 换票是轮询语义（最长 3 分钟，见 TICKET_POLL_* 注释）。
                 # 绝不能在这里同步等待 —— 会卡住浏览器、也会卡死整个事件循环。
                 # 起后台线程去轮询，页面立即返回（官方插件也是让浏览器先走）。
+                # 身份必须跟着 ticket 走：发起授权时用的哪套身份，换票就用哪套。
+                _ident = (_OAUTH_PENDING.get(cands_ids[0]) or {}).get("identity")
                 _AUTH_EXCHANGE.clear()
                 _AUTH_EXCHANGE.update({"state": "pending", "attempts": 0,
                                        "at": now, "error": "", "station": station,
+                                       "identity": (_ident or {}).get("plugin_name", ""),
                                        "candidates": len(cands_ids)})
                 _th.Thread(target=_exchange_bg,
-                           args=(list(cands_ids), q["secret"], station),
+                           args=(list(cands_ids), q["secret"], station, _ident),
                            daemon=True).start()
                 return HTMLResponse(
                     "<html><body style='font-family:sans-serif;padding:24px'>"
@@ -1441,13 +1783,20 @@ async def oauth_callback(req: Request):
         errs = []
         for _tid, pv in cands:
             try:
-                def _sync(_pv=pv, _code=q["code"], _port=port):
+                # 本次授权是用哪个身份发起的，就用哪个 client_id 换票
+                # （portal 把 code 绑在发起身份上；用错身份必然换不到）
+                _ident = pv.get("identity")
+                _cid = (_ident.get("client_id") if isinstance(_ident, dict) else "") \
+                    or (IDENTITIES.get(str(pv.get("identity_key") or "")) or {}).get("client_id") \
+                    or CLIENT_ID
+
+                def _sync(_pv=pv, _code=q["code"], _port=port, _cid=_cid):
                     # 同步 httpx 放线程里，别阻塞事件循环。
                     # 注意 _pv/_code/_port 用默认参数**绑定当前值**：直接闭包引用
                     # 循环变量会在下一轮被改写（晚绑定），拿到错的那个候选。
                     with _hx.Client(timeout=30) as c:
                         return c.post(STS, data={
-                            "client_id": CLIENT_ID,
+                            "client_id": _cid,
                             "code_verifier": _pv["verifier"],
                             "grant_type": "authorization_code",
                             "code": _code,
@@ -1457,14 +1806,14 @@ async def oauth_callback(req: Request):
                 r = await _aio.to_thread(_sync)
                 body = r.json()
                 if r.status_code == 200 and "credentials" in body:
-                    st = _load_state()
-                    st["ticket"] = {"access": body["credentials"].get("access_key_id"),
-                                    "secret": body["credentials"].get("secret_access_key"),
-                                    "securitytoken": body["credentials"].get("security_token", ""),
-                                    "expires_at": body["credentials"].get("expiration")}
+                    _patch = {"ticket": {
+                        "access": body["credentials"].get("access_key_id"),
+                        "secret": body["credentials"].get("secret_access_key"),
+                        "securitytoken": body["credentials"].get("security_token", ""),
+                        "expires_at": body["credentials"].get("expiration")}}
                     if body.get("refresh_token"):
-                        st["refresh_token"] = body["refresh_token"]
-                    _save_state(st)
+                        _patch["refresh_token"] = body["refresh_token"]
+                    _state_patch(**_patch)
                     _log("[ca] OAuth code 换票成功")
                     return HTMLResponse("<html><body><h2>授权成功，可以关掉此页，回网关点“测试”验证</h2></body></html>")
                 errs.append(str(body)[:120])
@@ -1487,6 +1836,15 @@ async def auth_status():
     tk = st.get("ticket") or {}
     out = {"ticket": bool(tk.get("access")), "ticket_expires": tk.get("expires_at"),
            "dpop": bool(st.get("refresh_token")),
+           # 当前授权身份（决定 client_id / plugin-name）—— 必须与凭据来源一致
+           "identity": {k: v for k, v in current_identity().items()},
+           # 会话保活信息（GUI 用来显示"还剩多久 / 何时自动续"）
+           "keepalive": {
+               "expires_in": _expires_in((_LAST_CRED.get("cred") or None)),
+               "last_at": _LAST_CRED.get("at") or 0,
+               "writable": _state_file() is not None,
+               "has_backup": bool(_state_file() and _state_file().with_suffix(".bak").is_file()),
+           },
            # OAuth 换票进度（前端授权后可能还在后台轮询，见 _exchange_bg）
            "exchange": dict(_AUTH_EXCHANGE)}
     # ensure_creds 内部可能走 STS 续期（同步网络），必须放线程，别卡事件循环
@@ -1494,10 +1852,21 @@ async def auth_status():
         cred = await _aio.to_thread(ensure_creds)
         out["ok"] = True
         out["expires"] = cred.get("expiration")
+        out["expires_in"] = _expires_in(cred)
     except Exception as e:  # noqa: BLE001
         out["ok"] = False
         out["error"] = str(e)[:200]
     return out
+
+
+@app.post("/v1/keepalive")
+async def keepalive(force: bool = False):
+    """主动续期一次（保活）。定时调它 = 会话永不闲置到过期，用户不必反复重登。
+
+    返回 {ok, action: skip|refreshed|failed, expires_in, error}
+    """
+    import asyncio as _aio
+    return await _aio.to_thread(lambda: prewarm(force=force))
 
 
 @app.get("/health")
@@ -1673,6 +2042,30 @@ async def claim():
         return JSONResponse({"ok": False, "error": str(e)}, status_code=503)
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"ok": False, "error": f"upstream error: {e}"}, status_code=502)
+
+
+def claim_daily() -> dict:
+    """领取华为云每日福利（**同步**，供 GUI 直接调用）。
+
+    CodeArts 只有一个账号，福利走 OPENGW，国内外一致 → 不区分站点。
+    返回 {ok, data?/error?}。上游幂等：重复调用仍返回 error_code=0000。
+    """
+    try:
+        cred = ensure_creds(prefer="ticket")
+        url = OPENGW + "/api/v1/benefit/claim"
+        raw = b"{}"
+        base = {"X-Security-Token": cred["security_token"],
+                "Content-Type": "application/json"}
+        headers = _sign(cred["access_key_id"], cred["secret_access_key"],
+                        "POST", url, base, raw)
+        with httpx.Client(timeout=20) as c:
+            r = c.post(url, content=raw, headers=headers)
+        body = r.json()
+        if body.get("error_code") != "0000":
+            return {"ok": False, "error": body.get("error_msg") or str(body)[:200]}
+        return {"ok": True, "data": body.get("result")}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
 if __name__ == "__main__":

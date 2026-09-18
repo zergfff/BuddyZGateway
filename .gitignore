@@ -41,3 +41,7 @@ nul
 # IDE
 .vscode/
 .idea/
+
+# 运行时生成的账号快照（测试占位也会被写进去，不入库）
+_study/mc_accounts.json
+.ohmyagent/

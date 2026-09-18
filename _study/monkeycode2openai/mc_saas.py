@@ -185,3 +185,45 @@ def _solve_captcha() -> str:
 def do_checkin() -> dict:
     cap_token = _solve_captcha()
     return _req("POST", EP_CHECKIN, {"captcha_token": cap_token}) or {}
+
+
+def claim_for_station(station: str | None = None) -> dict:
+    """**按站点**签到，返回 {ok, station, already?, data?, error?}。
+
+    MonkeyCode 两版共用同一份 cookie/key 文件（只有 `server` 字段不同），
+    所以同一时刻只有**当前登录那一版**能签到。station 用于强制把请求发到
+    该站点的域名；cookie 不匹配时上游会报错，这里如实返回。
+    """
+    global STATION
+    prev = STATION
+    out = {"ok": False, "station": station or "", "already": False, "error": ""}
+    try:
+        if station in MC_STATION_HOSTS:
+            STATION = station
+        out["station"] = station or (STATION or "")
+        st = get_checkin_status() or {}
+        if st.get("checked_in"):
+            out.update({"ok": True, "already": True, "data": st})
+            return out
+        res = do_checkin() or {}
+        out.update({"ok": True, "data": res})
+        return out
+    except Exception as e:  # noqa: BLE001
+        out["error"] = f"{type(e).__name__}: {e}"
+        return out
+    finally:
+        STATION = prev
+
+
+def checkin_state(station: str | None = None) -> dict:
+    """只查签到状态（不领取）。"""
+    global STATION
+    prev = STATION
+    try:
+        if station in MC_STATION_HOSTS:
+            STATION = station
+        return {"ok": True, "data": get_checkin_status() or {}}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    finally:
+        STATION = prev
